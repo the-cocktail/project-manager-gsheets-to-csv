@@ -1,78 +1,89 @@
 var GoogleSpreadsheet = require('google-spreadsheet');
 var async = require('async');
 var csv = require('csv');
+var fs = require('fs');
 
 async.waterfall([
-  loadDocument,
+  loadDocuments,
+  processDocument,
   getProjectName,
   getProjectId,
   getResources,
   getResourceDepartments,
   getResourceDedications,
-], function (err, projectData) {
+], function (err, sheet, projectData) {
   if (err) {
     throw err;
   } else {
-    generateCSV(projectData);
+    generateCSV(sheet, projectData);
   }
 });
 
-function loadDocument(callback) {
-  var doc = new GoogleSpreadsheet('1H6oKo71NOapisLnjHltXbDlyLfp28U4Bni5SHyt1u48');
+function loadDocuments(callback) {
+  var documents = require('./resources/documents.json');
+  documents.forEach(function (docId) {
+    var doc = new GoogleSpreadsheet(docId);
+    callback(null, doc);
+  });
+}
+
+function processDocument(doc, callback) {
   var creds = require('./resources/credentials.json');
   doc.useServiceAccountAuth(creds, function (err) {
-    callback(err, doc);
+    doc.getInfo(function (err, info) {
+      info.worksheets.forEach(function (sheet) { callback(err, sheet); });
+    });
   });
 }
 
-function getProjectName(doc, callback) {
+function getProjectName(sheet, callback) {
   var projectNameCell = {'min-row': 2, 'max-row': 2, 'min-col': 3, 'max-col': 3};
-  doc.getCells(1, projectNameCell, function (err, cells) {
+  sheet.getCells(projectNameCell, function (err, cells) {
     // We only expect a single cell.
     var project = {name: cells[0].value};
-    callback(null, doc, project);
+    callback(null, sheet, project);
   });
 }
 
-function getProjectId(doc, projectData, callback) {
+function getProjectId(sheet, projectData, callback) {
   var projectIdCell = {'min-row': 1, 'max-row': 1, 'min-col': 4, 'max-col': 4};
-  doc.getCells(1, projectIdCell, function (err, cells) {
+  sheet.getCells(projectIdCell, function (err, cells) {
     // We only expect a single cell.
     projectData.code = cells[0].value;
-    callback(null, doc, projectData);
+    callback(null, sheet, projectData);
   });
 }
 
-function getResources(doc, projectData, callback) {
+function getResources(sheet, projectData, callback) {
   var resourceCells = {'min-row': 5, 'max-row': 5, 'return-empty': false};
-  doc.getCells(1, resourceCells, function (err, cells) {
+  sheet.getCells(resourceCells, function (err, cells) {
     projectData.resources = cells.map(function (cell) {
       return {name: cell.value.replace("\n", " ")};
     });
-    callback(null, doc, projectData);
+    callback(null, sheet, projectData);
   });
 }
 
-function getResourceDepartments(doc, projectData, callback) {
+function getResourceDepartments(sheet, projectData, callback) {
   var departmentCells = {'min-row': 3, 'max-row': 3, 'min-col': 3, 'max-col': 3 + projectData.resources.length - 1, 'return-empty': true};
-  doc.getCells(1, departmentCells, function (err, cells) {
+  sheet.getCells(departmentCells, function (err, cells) {
     var departments = cells.map(function (cell) { return cell.value; });
     departments.forEach(function (department, index) {
       projectData.resources[index].department = department;
     });
-    callback(null, doc, projectData);
+    callback(null, sheet, projectData);
   });
 }
 
-function getResourceDedications(doc, projectData, callback) {
+function getResourceDedications(sheet, projectData, callback) {
   var weekCells = {'min-row': 15, 'min-col': 1, 'max-col': 1};
-  doc.getCells(1, weekCells, function (err, cells) {
+  sheet.getCells(weekCells, function (err, cells) {
     // We store an array of every registered week converted into a Date object.
     // Values that are not dates will be stored as null.
     var weeks = cells.map(_parseWeek);
     var dedicationCells = {'min-row': 15, 'max-row': 15 + weeks.length - 1, 'min-col': 3, 'max-col': 3 + projectData.resources.length - 1, 'return-empty': true};
     // Once we have registered all weeks, we go for the dedications.
-    doc.getCells(1, dedicationCells, function (err, cells) {
+    sheet.getCells(dedicationCells, function (err, cells) {
       projectData.resources = projectData.resources.map(function (resource, index) {
         var resourceCol = 3 + index;
         var resourceHours = cells.filter(function (cell) { return cell.col == resourceCol; });
@@ -82,12 +93,12 @@ function getResourceDedications(doc, projectData, callback) {
                                     .filter(function (dedication) { return dedication.week !== null; });
         return resource;
       });
-      callback(null, projectData);
+      callback(null, sheet, projectData);
     });
   });
 }
 
-function generateCSV(projectData) {
+function generateCSV(sheet, projectData) {
   var weeks = projectData.resources[0].dedications.map(_formatDateFromDedication);
   var data = [];
   // Create headers
@@ -98,7 +109,13 @@ function generateCSV(projectData) {
     data.push([projectData.name, resource.name].concat(hours).concat(projectData.code));
   });
   // Output the CSV file
-  csv.stringify(data, {header: true}, function(err, data) { process.stdout.write(data); });
+  csv.stringify(data, {header: true}, function(err, data) {
+    var fileName = projectData.name + "_" + sheet.title + "_" + Date.now() + ".csv";
+    fs.writeFile("generated/"+ fileName, data, function (err) {
+      if (err) { throw err; }
+      console.log("Generated \""+ fileName + "\"");
+    });
+  });
 }
 
 //////////// HELPER FUNCTIONS ////////////
