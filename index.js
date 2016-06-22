@@ -19,7 +19,7 @@ async.waterfall([
 
 function loadDocument(callback) {
   var doc = new GoogleSpreadsheet('1H6oKo71NOapisLnjHltXbDlyLfp28U4Bni5SHyt1u48');
-  var creds = require('./credentials.json');
+  var creds = require('./resources/credentials.json');
   doc.useServiceAccountAuth(creds, function (err) {
     callback(err, doc);
   });
