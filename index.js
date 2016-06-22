@@ -6,9 +6,10 @@ async.waterfall([
   getProjectName,
   getProjectId,
   getResources,
-  getResourceDepartments
+  getResourceDepartments,
+  gettResourceDedications,
 ], function (err, document) {
-  console.log(document);
+  console.log(JSON.stringify(document));
 });
 
 function loadDocument(callback) {
@@ -48,13 +49,7 @@ function getResources(doc, project, callback) {
 }
 
 function getResourceDepartments(doc, project, callback) {
-  var departmentCells = {
-    'min-row': 3,
-    'max-row': 3,
-    'min-col': 3,
-    'max-col': 3 + project.resources.length - 1,
-    'return-empty': true
-  };
+  var departmentCells = {'min-row': 3, 'max-row': 3, 'min-col': 3, 'max-col': 3 + project.resources.length - 1, 'return-empty': true};
   doc.getCells(1, departmentCells, function (err, cells) {
     var departments = cells.map(function (cell) { return cell.value; });
     departments.forEach(function (department, index) {
@@ -64,6 +59,31 @@ function getResourceDepartments(doc, project, callback) {
   });
 }
 
-function getResourceDedications(doc, project, callback) {
-  // TODO fill with code
+function gettResourceDedications(doc, project, callback) {
+  var weekCells = {'min-row': 15, 'min-col': 1, 'max-col': 1};
+  doc.getCells(1, weekCells, function (err, cells) {
+    // We store an array of every registered week converted into a Date object.
+    // Values that are not dates will be stored as null.
+    var weeks = cells.map(function (cell) {
+          var parsed = cell.value.split("/").map(function (x) { return parseInt(x); });
+          // Dates come in a format MM/DD/YYYY
+          if (parsed.length !== 3) { return null; }
+          // JS requires months to start in 0, not 1.
+          return new Date(Date.UTC(parseInt(parsed[2]), parseInt(parsed[0]) - 1, parseInt(parsed[1])));
+        }),
+        dedicationCells = {'min-row': 15, 'max-row': 15 + weeks.length - 1, 'min-col': 3, 'max-col': 3 + project.resources.length - 1, 'return-empty': true};
+    // Once we have registered all weeks, we go for the dedications.
+    doc.getCells(1, dedicationCells, function (err, cells) {
+      project.resources = project.resources.map(function (resource, index) {
+        var resourceCol = 3 + index,
+            resourceHours = cells.filter(function (cell) { return cell.col == resourceCol; });
+        // For each resource we get its dedicated hours, which are stored in an array
+        // so the resourceHours[X] represents the hours dedicated in the week[X]
+        resource.dedications = weeks.map(function (week, index) { return {week: week, dedication: resourceHours[index].value}; })
+                                    .filter(function (dedication) { return dedication.week !== null; });
+        return resource;
+      });
+      callback(null, project);
+    });
+  });
 }
