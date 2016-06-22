@@ -1,5 +1,5 @@
 {
-  "name": "project-manager-csv",
+  "name": "project-manager-gsheets-to-csv",
   "version": "0.1.0",
   "description": "Converts Project Manager Google Sheets to CSV",
   "main": "index.js",
