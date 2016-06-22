@@ -1,5 +1,6 @@
 var GoogleSpreadsheet = require('google-spreadsheet');
 var async = require('async');
+var csv = require('csv');
 
 async.waterfall([
   loadDocument,
@@ -8,8 +9,12 @@ async.waterfall([
   getResources,
   getResourceDepartments,
   getResourceDedications,
-], function (err, document) {
-  console.log(JSON.stringify(document));
+], function (err, projectData) {
+  if (err) {
+    throw err;
+  } else {
+    generateCSV(projectData);
+  }
 });
 
 function loadDocument(callback) {
@@ -29,46 +34,46 @@ function getProjectName(doc, callback) {
   });
 }
 
-function getProjectId(doc, project, callback) {
+function getProjectId(doc, projectData, callback) {
   var projectIdCell = {'min-row': 1, 'max-row': 1, 'min-col': 4, 'max-col': 4};
   doc.getCells(1, projectIdCell, function (err, cells) {
     // We only expect a single cell.
-    project.code = cells[0].value;
-    callback(null, doc, project);
+    projectData.code = cells[0].value;
+    callback(null, doc, projectData);
   });
 }
 
-function getResources(doc, project, callback) {
+function getResources(doc, projectData, callback) {
   var resourceCells = {'min-row': 5, 'max-row': 5, 'return-empty': false};
   doc.getCells(1, resourceCells, function (err, cells) {
-    project.resources = cells.map(function (cell) {
+    projectData.resources = cells.map(function (cell) {
       return {name: cell.value.replace("\n", " ")};
     });
-    callback(null, doc, project);
+    callback(null, doc, projectData);
   });
 }
 
-function getResourceDepartments(doc, project, callback) {
-  var departmentCells = {'min-row': 3, 'max-row': 3, 'min-col': 3, 'max-col': 3 + project.resources.length - 1, 'return-empty': true};
+function getResourceDepartments(doc, projectData, callback) {
+  var departmentCells = {'min-row': 3, 'max-row': 3, 'min-col': 3, 'max-col': 3 + projectData.resources.length - 1, 'return-empty': true};
   doc.getCells(1, departmentCells, function (err, cells) {
     var departments = cells.map(function (cell) { return cell.value; });
     departments.forEach(function (department, index) {
-      project.resources[index].department = department;
+      projectData.resources[index].department = department;
     });
-    callback(null, doc, project);
+    callback(null, doc, projectData);
   });
 }
 
-function getResourceDedications(doc, project, callback) {
+function getResourceDedications(doc, projectData, callback) {
   var weekCells = {'min-row': 15, 'min-col': 1, 'max-col': 1};
   doc.getCells(1, weekCells, function (err, cells) {
     // We store an array of every registered week converted into a Date object.
     // Values that are not dates will be stored as null.
     var weeks = cells.map(_parseWeek);
-    var dedicationCells = {'min-row': 15, 'max-row': 15 + weeks.length - 1, 'min-col': 3, 'max-col': 3 + project.resources.length - 1, 'return-empty': true};
+    var dedicationCells = {'min-row': 15, 'max-row': 15 + weeks.length - 1, 'min-col': 3, 'max-col': 3 + projectData.resources.length - 1, 'return-empty': true};
     // Once we have registered all weeks, we go for the dedications.
     doc.getCells(1, dedicationCells, function (err, cells) {
-      project.resources = project.resources.map(function (resource, index) {
+      projectData.resources = projectData.resources.map(function (resource, index) {
         var resourceCol = 3 + index;
         var resourceHours = cells.filter(function (cell) { return cell.col == resourceCol; });
         // For each resource we get its dedicated hours, which are stored in an array
@@ -77,11 +82,26 @@ function getResourceDedications(doc, project, callback) {
                                     .filter(function (dedication) { return dedication.week !== null; });
         return resource;
       });
-      callback(null, project);
+      callback(null, projectData);
     });
   });
 }
 
+function generateCSV(projectData) {
+  var weeks = projectData.resources[0].dedications.map(_formatDateFromDedication);
+  var data = [];
+  // Create headers
+  data.push(["Proyecto", "Recurso"].concat(weeks).concat(["Codigo Proyecto"]));
+  // Add entires for resources
+  projectData.resources.forEach(function (resource) {
+    var hours = resource.dedications.map(function (d) { return d.dedication; });
+    data.push([projectData.name, resource.name].concat(hours).concat(projectData.code));
+  });
+  // Output the CSV file
+  csv.stringify(data, {header: true}, function(err, data) { process.stdout.write(data); });
+}
+
+//////////// HELPER FUNCTIONS ////////////
 function _parseWeek(cell) {
   var components = cell.value.split("/").map(function (x) { return parseInt(x); });
   // Dates come in a format MM/DD/YYYY
@@ -91,4 +111,10 @@ function _parseWeek(cell) {
   } else {
     return null;
   }
+}
+
+function _formatDateFromDedication(dedication) {
+  var months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+  var formatted = dedication.week.getDate() + "/" + (dedication.week.getMonth() + 1) + "/" + dedication.week.getFullYear();
+  return formatted + " ("+ months[dedication.week.getMonth()] +")";
 }
