@@ -3,28 +3,36 @@ var async = require('async');
 var csv = require('csv');
 var fs = require('fs');
 
-async.waterfall([
-  loadDocuments,
-  processDocument,
-  getProjectName,
-  getProjectId,
-  getResources,
-  getResourceDepartments,
-  getResourceDedications,
-], function (err, sheet, projectData) {
-  if (err) {
-    throw err;
-  } else {
-    generateCSV(sheet, projectData);
-  }
-});
 
-function loadDocuments(callback) {
-  var documents = require('./resources/documents.json');
-  documents.forEach(function (docId) {
-    var doc = new GoogleSpreadsheet(docId);
-    callback(null, doc);
+// AWS Lambda entry point
+exports.handler = function(event, context) {
+  launchProcessing(event.documentIds);
+};
+
+function launchProcessing(documentIds) {
+  documentIds.forEach(function (documentId) {
+    async.waterfall([
+      async.apply(loadDocuments, documentId),
+      processDocument,
+      getProjectName,
+      getProjectId,
+      getResources,
+      getResourceDepartments,
+      getResourceDedications,
+    ], function (err, sheet, projectData) {
+      if (err) {
+        throw err;
+      } else {
+        generateCSV(sheet, projectData);
+      }
+    });
   });
+}
+
+
+function loadDocuments(documentId, callback) {
+  var doc = new GoogleSpreadsheet(documentId);
+  callback(null, doc);
 }
 
 function processDocument(doc, callback) {

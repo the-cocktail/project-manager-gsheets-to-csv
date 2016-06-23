@@ -1,3 +1,9 @@
 node_modules
-resources/*
+resources/credentials.json
 generated/*
+
+# node-lambda generated files
+.env
+context.json
+deploy.env
+event.json
