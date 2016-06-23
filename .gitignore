@@ -1,6 +1,6 @@
 node_modules
 resources/credentials.json
-generated/*
+resources/aws.json
 
 # node-lambda generated files
 .env

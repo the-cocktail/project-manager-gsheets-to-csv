@@ -1,7 +1,10 @@
-var GoogleSpreadsheet = require('google-spreadsheet');
-var async = require('async');
-var csv = require('csv');
-var fs = require('fs');
+GoogleSpreadsheet = require('google-spreadsheet');
+async = require('async');
+csv = require('csv');
+fs = require('fs');
+aws = require('aws-sdk');
+awsSettings = require('./resources/aws.json');
+s3 = new aws.S3();
 
 
 //////////// AWS LAMBDA ENTRY POINT ////////////
@@ -112,8 +115,10 @@ function generateCSV(sheet, projectData) {
   csv.stringify(data, {header: true}, function(err, data) {
     var date = new Date();
     var fileName = date.getTime() + "_" + projectData.name + "_" + sheet.title + ".csv";
-    fs.writeFileSync("generated/"+ fileName, data);
-    console.log("Generated \""+ fileName + "\"");
+    s3.upload({Bucket: awsSettings.bucket, Key: 'csvs/'+ fileName, Body: data}, {}, function(err, data) {
+      if (err) { throw err; }
+      console.log("Generated: " + data.Location);
+    });
   });
 }
 
