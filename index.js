@@ -10,10 +10,12 @@ s3 = new aws.S3();
 //////////// AWS LAMBDA ENTRY POINT ////////////
 
 exports.handler = function(event, context) {
-  if (!event.hasOwnProperty('documentId')) {
-    throw "The event must contain a 'documentId'";
+  if (!event.hasOwnProperty('documentIds')) {
+    throw "The event must contain a list of 'documentIds'";
   }
-  processDocument(event.documentId);
+  event.documentIds.forEach(function (documentId) {
+    processDocument(documentId);
+  });
 };
 
 //////////// DOCUMENT PROCESSING FUNCTIONS ////////////
