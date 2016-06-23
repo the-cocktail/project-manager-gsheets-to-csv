@@ -112,7 +112,7 @@ function generateCSV(sheet, projectData) {
   // Output the CSV file
   csv.stringify(data, {header: true}, function(err, data) {
     var date = new Date();
-    var fileName = projectData.name + "_" + sheet.title + "_" + date.getFullYear() + "-" + (date.getMonth() + 1) + "-" + date.getDate() + ".csv";
+    var fileName = date.getTime() + "_" + projectData.name + "_" + sheet.title + ".csv";
     fs.writeFileSync("generated/"+ fileName, data);
     console.log("Generated \""+ fileName + "\"");
   });
