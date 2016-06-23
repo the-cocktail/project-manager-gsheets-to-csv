@@ -4,36 +4,29 @@ var csv = require('csv');
 var fs = require('fs');
 
 
-// AWS Lambda entry point
+//////////// AWS LAMBDA ENTRY POINT ////////////
+
 exports.handler = function(event, context) {
-  launchProcessing(event.documentIds);
+  if (!event.hasOwnProperty('documentId')) {
+    throw "The event must contain a 'documentId'";
+  }
+  async.waterfall([
+    async.apply(processDocument, new GoogleSpreadsheet(event.documentId)),
+    getProjectName,
+    getProjectId,
+    getResources,
+    getResourceDepartments,
+    getResourceDedications,
+  ], function (err, sheet, projectData) {
+    if (err) {
+      throw err;
+    } else {
+      generateCSV(sheet, projectData);
+    }
+  });
 };
 
-function launchProcessing(documentIds) {
-  documentIds.forEach(function (documentId) {
-    async.waterfall([
-      async.apply(loadDocuments, documentId),
-      processDocument,
-      getProjectName,
-      getProjectId,
-      getResources,
-      getResourceDepartments,
-      getResourceDedications,
-    ], function (err, sheet, projectData) {
-      if (err) {
-        throw err;
-      } else {
-        generateCSV(sheet, projectData);
-      }
-    });
-  });
-}
-
-
-function loadDocuments(documentId, callback) {
-  var doc = new GoogleSpreadsheet(documentId);
-  callback(null, doc);
-}
+//////////// DOCUMENT PROCESSING FUNCTIONS ////////////
 
 function processDocument(doc, callback) {
   var creds = require('./resources/credentials.json');
