@@ -111,11 +111,10 @@ function generateCSV(sheet, projectData) {
   });
   // Output the CSV file
   csv.stringify(data, {header: true}, function(err, data) {
-    var fileName = projectData.name + "_" + sheet.title + "_" + Date.now() + ".csv";
-    fs.writeFile("generated/"+ fileName, data, function (err) {
-      if (err) { throw err; }
-      console.log("Generated \""+ fileName + "\"");
-    });
+    var date = new Date();
+    var fileName = projectData.name + "_" + sheet.title + "_" + date.getFullYear() + "-" + (date.getMonth() + 1) + "-" + date.getDate() + ".csv";
+    fs.writeFileSync("generated/"+ fileName, data);
+    console.log("Generated \""+ fileName + "\"");
   });
 }
 
