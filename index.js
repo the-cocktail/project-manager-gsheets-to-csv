@@ -10,29 +10,28 @@ exports.handler = function(event, context) {
   if (!event.hasOwnProperty('documentId')) {
     throw "The event must contain a 'documentId'";
   }
-  async.waterfall([
-    async.apply(processDocument, new GoogleSpreadsheet(event.documentId)),
-    getProjectName,
-    getProjectId,
-    getResources,
-    getResourceDepartments,
-    getResourceDedications,
-  ], function (err, sheet, projectData) {
-    if (err) {
-      throw err;
-    } else {
-      generateCSV(sheet, projectData);
-    }
-  });
+  processDocument(event.documentId);
 };
 
 //////////// DOCUMENT PROCESSING FUNCTIONS ////////////
 
-function processDocument(doc, callback) {
+function processDocument(documentId) {
+  var doc = new GoogleSpreadsheet(documentId);
   var creds = require('./resources/credentials.json');
   doc.useServiceAccountAuth(creds, function (err) {
     doc.getInfo(function (err, info) {
-      info.worksheets.forEach(function (sheet) { callback(err, sheet); });
+      info.worksheets.forEach(function (sheet) {
+        async.waterfall([
+          async.apply(getProjectName, sheet),
+          getProjectId,
+          getResources,
+          getResourceDepartments,
+          getResourceDedications,
+        ], function (err, sheet, projectData) {
+          if (err) { throw err; }
+          generateCSV(sheet, projectData);
+        });
+      });
     });
   });
 }
