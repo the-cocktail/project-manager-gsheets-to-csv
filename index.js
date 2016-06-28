@@ -107,11 +107,11 @@ function generateCSV(sheet, projectData) {
   var weeks = projectData.resources[0].dedications.map(_formatDateFromDedication);
   var data = [];
   // Create headers
-  data.push(["Proyecto", "Recurso"].concat(weeks).concat(["Codigo Proyecto"]));
+  data.push(["Codigo Proyecto", "Proyecto", "Recurso"].concat(weeks));
   // Add entires for resources
   projectData.resources.forEach(function (resource) {
     var hours = resource.dedications.map(function (d) { return d.dedication; });
-    data.push([projectData.name, resource.name].concat(hours).concat(projectData.code));
+    data.push([projectData.code, projectData.name, resource.name].concat(hours));
   });
   // Output the CSV file
   csv.stringify(data, {header: true}, function(err, data) {
