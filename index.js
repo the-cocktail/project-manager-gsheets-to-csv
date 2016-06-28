@@ -127,10 +127,10 @@ function generateCSV(sheet, projectData) {
 //////////// HELPER FUNCTIONS ////////////
 function _parseWeek(cell) {
   var components = cell.value.split("/").map(function (x) { return parseInt(x); });
-  // Dates come in a format MM/DD/YYYY
+  // Dates come in a format DD/MM/YYYY
   if (components.length === 3) {
     // JS requires months to start in 0, not 1.
-    return new Date(Date.UTC(components[2], components[0] - 1, components[1]));
+    return new Date(Date.UTC(components[2], components[1] - 1, components[0]));
   } else {
     return null;
   }
