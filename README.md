@@ -49,16 +49,5 @@ En producción se usarán las claves del IAM profile que use la función lambda.
 
 Importante este proyecto utiliza la versión **4.3.2** de nodejs.
 
-Para simular en local la ejecución de AWS Lambda hay que usar el paquete
-[node-lambda](https://www.npmjs.com/package/node-lambda).
-
-  1. Con el comando `node-lambda setup` podemos crear los ficheros necesarios
-  para simular el entorno de ejecución de AWS Lambda. En concreto podemos usar
-  el fichero `event.json` para simular el evento que recibe el script al ejecutarse
-  en AWS lambda.
-  2. Tras ejecutar el comando `node-lambda setup` tendremos un fichero llamado
-  `.env` donde podemos modificar la configuración de credenciales que necesitemos
-  para Amazon.
-  3. Con el comando `node-lambda run` podemos lanzar la ejecución del script. Es
-  importante especificar los IDs de los documentos a procesar bajo la clave
-  `documentIds` en el fichero `event.json` tal y como se indica al inicio del README.
+Para simular en local la ejecución de AWS Lambda hay que usar el paquete `serverless-offline`.
+Sólo es necesario ejecutar el comando `serverless offline start` en la raíz de nuestro proyecto.
