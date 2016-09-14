@@ -9,11 +9,11 @@ s3 = new aws.S3();
 
 //////////// AWS LAMBDA ENTRY POINT ////////////
 
-exports.handler = function(event, context) {
-  if (!event.hasOwnProperty('documentIds')) {
+module.exports.convert = function(event, context) {
+  if (!event.body.hasOwnProperty('documentIds')) {
     throw "The event must contain a list of 'documentIds'";
   }
-  event.documentIds.forEach(function (documentId) {
+  event.body.documentIds.forEach(function (documentId) {
     processDocument(documentId);
   });
 };
@@ -27,7 +27,7 @@ function processDocument(documentId) {
     doc.getInfo(function (err, info) {
       info.worksheets.forEach(function (sheet) {
         async.waterfall([
-          async.apply(getProjectName, sheet),
+          async.apply(getProjectName, info, sheet),
           getProjectId,
           getResources,
           getResourceDepartments,
@@ -41,19 +41,25 @@ function processDocument(documentId) {
   });
 }
 
-function getProjectName(sheet, callback) {
+function getProjectName(document, sheet, callback) {
   var projectNameCell = {'min-row': 2, 'max-row': 2, 'min-col': 3, 'max-col': 3};
   sheet.getCells(projectNameCell, function (err, cells) {
     // We only expect a single cell.
+    if (!(cells.length > 0)) {
+      callback(new Error("ERROR en '"+ document.title +"'. No se encuentra el nombre del proyecto en la hoja '"+ sheet.title +"'"), null);
+    }
     var project = {name: cells[0].value};
-    callback(null, sheet, project);
+    callback(null, document, sheet, project);
   });
 }
 
-function getProjectId(sheet, projectData, callback) {
+function getProjectId(document, sheet, projectData, callback) {
   var projectIdCell = {'min-row': 1, 'max-row': 1, 'min-col': 4, 'max-col': 4};
   sheet.getCells(projectIdCell, function (err, cells) {
     // We only expect a single cell.
+    if (!(cells.length > 0)) {
+      callback(new Error("ERROR en '"+ document.title +"'. No se encuentra el código del proyecto en la hoja '"+ sheet.title +"'"), null);
+    }
     projectData.code = cells[0].value;
     callback(null, sheet, projectData);
   });
@@ -118,7 +124,7 @@ function generateCSV(sheet, projectData) {
   // Output the CSV file
   csv.stringify(data, {header: true, delimiter: ';', quote: true}, function(err, data) {
     var date = new Date();
-    var fileName = date.getTime() + "_" + projectData.name + "_" + sheet.title + ".csv";
+    var fileName = _getDateFolder(date) + projectData.name + "_" + date.getTime() + ".csv";
     s3.upload({Bucket: awsSettings.bucket, Key: 'csvs/'+ fileName, Body: data}, {}, function(err, data) {
       if (err) { throw err; }
       console.log("Generated: " + data.Location);
@@ -136,4 +142,10 @@ function _parseWeek(cell) {
   } else {
     return null;
   }
+}
+
+function _getDateFolder(date) {
+  var month = (date.getUTCMonth() + 1);
+  var monthWithPrefix = month < 10 ? "0" + month : month;
+  return date.getUTCFullYear() +"/"+ monthWithPrefix +"/"+ date.getUTCDate() + "/";
 }
