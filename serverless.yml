@@ -21,16 +21,9 @@ provider:
     - Effect: "Allow"
       Action:
         - "s3:ListBucket"
-      Resource: { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "ServerlessDeploymentBucket" } ] ]  }
-    - Effect: "Allow"
-      Action:
         - "s3:PutObject"
-      Resource:
-        Fn::Join:
-          - ""
-          - - "arn:aws:s3:::"
-            - "Ref" : "ServerlessDeploymentBucket"
-            - "Ref" : "GeneratedFilesBucket"
+        - "s3:GetObject"
+      Resource: { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "ServerlessDeploymentBucket" }, { "Ref" : "NewResource" } ] ] }
 
 # you can overwrite defaults here
 #defaults:
@@ -74,7 +67,7 @@ functions:
 # you can add CloudFormation resource templates here
 resources:
  Resources:
-   GeneratedFilesBucket:
+   NewResource:
      Type: AWS::S3::Bucket
      Properties:
        BucketName: navision-to-csv
