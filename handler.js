@@ -3,7 +3,6 @@ async = require('async');
 csv = require('csv');
 fs = require('fs');
 aws = require('aws-sdk');
-awsSettings = require('./resources/aws.json');
 s3 = new aws.S3();
 
 //////////// GLOBAL VARIABLES ////////////
@@ -149,7 +148,7 @@ function generateCSV(sheet, projectData) {
     var date = new Date();
     var fileName = _getDateFolder(date) + projectData.name + "_" + date.getTime() + ".csv";
     var dir = globals.eventOrigin === "cron" ? "cron/" : "http/";
-    s3.upload({Bucket: awsSettings.bucket, Key: dir + fileName, Body: data}, {}, function(err, data) {
+    s3.upload({Bucket: "navision-to-csv", Key: dir + fileName, Body: data}, {}, function(err, data) {
       if (err) { throw err; }
       console.log("Generated: " + data.Location);
     });
