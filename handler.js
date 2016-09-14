@@ -118,7 +118,7 @@ function generateCSV(sheet, projectData) {
   // Output the CSV file
   csv.stringify(data, {header: true, delimiter: ';', quote: true}, function(err, data) {
     var date = new Date();
-    var fileName = date.getTime() + "_" + projectData.name + "_" + sheet.title + ".csv";
+    var fileName = _getDateFolder(date) + projectData.name + "_" + sheet.title + "_" + date.getTime() + ".csv";
     s3.upload({Bucket: awsSettings.bucket, Key: 'csvs/'+ fileName, Body: data}, {}, function(err, data) {
       if (err) { throw err; }
       console.log("Generated: " + data.Location);
@@ -136,4 +136,10 @@ function _parseWeek(cell) {
   } else {
     return null;
   }
+}
+
+function _getDateFolder(date) {
+  var month = (date.getUTCMonth() + 1);
+  var monthWithPrefix = month < 10 ? "0" + month : month;
+  return date.getUTCFullYear() +"/"+ monthWithPrefix +"/"+ date.getUTCDate() + "/";
 }
