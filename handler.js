@@ -9,7 +9,7 @@ s3 = new aws.S3();
 
 //////////// AWS LAMBDA ENTRY POINT ////////////
 
-exports.handler = function(event, context) {
+module.exports.convert = function(event, context) {
   if (!event.hasOwnProperty('documentIds')) {
     throw "The event must contain a list of 'documentIds'";
   }
