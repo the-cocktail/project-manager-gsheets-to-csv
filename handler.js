@@ -7,25 +7,29 @@ awsSettings = require('./resources/aws.json');
 s3 = new aws.S3();
 
 
+var sheetsToProcess = new Set();
+var numGeneratedFiles = 0;
+
 //////////// AWS LAMBDA ENTRY POINT ////////////
 
-module.exports.convert = function(event, context) {
+module.exports.convert = function(event, context, responseCallback) {
   if (!event.body.hasOwnProperty('documentIds')) {
     throw "The event must contain a list of 'documentIds'";
   }
   event.body.documentIds.forEach(function (documentId) {
-    processDocument(documentId);
+    processDocument(documentId, responseCallback);
   });
 };
 
 //////////// DOCUMENT PROCESSING FUNCTIONS ////////////
 
-function processDocument(documentId) {
+function processDocument(documentId, responseCallback) {
   var doc = new GoogleSpreadsheet(documentId);
   var creds = require('./resources/credentials.json');
   doc.useServiceAccountAuth(creds, function (err) {
     doc.getInfo(function (err, info) {
       info.worksheets.forEach(function (sheet) {
+        sheetsToProcess.add(sheet.id);
         async.waterfall([
           async.apply(getProjectName, info, sheet),
           getProjectId,
@@ -33,8 +37,13 @@ function processDocument(documentId) {
           getResourceDepartments,
           getResourceDedications,
         ], function (err, sheet, projectData) {
-          if (err) { throw err; }
+          if (err) { throw(err);}
           generateCSV(sheet, projectData);
+          sheetsToProcess.delete(sheet.id);
+          numGeneratedFiles++;
+          if (sheetsToProcess.size === 0) {
+            responseCallback(null, "All sheets processed. "+ numGeneratedFiles + " files generated.");
+          }
         });
       });
     });
@@ -45,7 +54,7 @@ function getProjectName(document, sheet, callback) {
   var projectNameCell = {'min-row': 2, 'max-row': 2, 'min-col': 3, 'max-col': 3};
   sheet.getCells(projectNameCell, function (err, cells) {
     // We only expect a single cell.
-    if (!(cells.length > 0)) {
+    if (cells.length <= 0) {
       callback(new Error("ERROR en '"+ document.title +"'. No se encuentra el nombre del proyecto en la hoja '"+ sheet.title +"'"), null);
     }
     var project = {name: cells[0].value};
@@ -57,7 +66,7 @@ function getProjectId(document, sheet, projectData, callback) {
   var projectIdCell = {'min-row': 1, 'max-row': 1, 'min-col': 4, 'max-col': 4};
   sheet.getCells(projectIdCell, function (err, cells) {
     // We only expect a single cell.
-    if (!(cells.length > 0)) {
+    if (cells.length <= 0) {
       callback(new Error("ERROR en '"+ document.title +"'. No se encuentra el código del proyecto en la hoja '"+ sheet.title +"'"), null);
     }
     projectData.code = cells[0].value;
