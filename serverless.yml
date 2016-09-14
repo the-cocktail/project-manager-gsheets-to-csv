@@ -45,14 +45,14 @@ provider:
 #  artifact: my-service-code.zip
 
 functions:
-  generate-csv-http:
+  generateCsvHttp:
     handler: handler.convert_http
     timeout: 60
     events:
       - http:
           path: generate-csv
           method: post
-  generate-csv-schedule:
+  generateCsvSchedule:
     handler: handler.convert_schedule
     timeout: 60
     schedule: cron(0 4 * * *)
