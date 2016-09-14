@@ -27,7 +27,7 @@ function processDocument(documentId) {
     doc.getInfo(function (err, info) {
       info.worksheets.forEach(function (sheet) {
         async.waterfall([
-          async.apply(getProjectName, sheet),
+          async.apply(getProjectName, info, sheet),
           getProjectId,
           getResources,
           getResourceDepartments,
@@ -41,19 +41,25 @@ function processDocument(documentId) {
   });
 }
 
-function getProjectName(sheet, callback) {
+function getProjectName(document, sheet, callback) {
   var projectNameCell = {'min-row': 2, 'max-row': 2, 'min-col': 3, 'max-col': 3};
   sheet.getCells(projectNameCell, function (err, cells) {
     // We only expect a single cell.
+    if (!(cells.length > 0)) {
+      callback(new Error("ERROR en '"+ document.title +"'. No se encuentra el nombre del proyecto en la hoja '"+ sheet.title +"'"), null);
+    }
     var project = {name: cells[0].value};
-    callback(null, sheet, project);
+    callback(null, document, sheet, project);
   });
 }
 
-function getProjectId(sheet, projectData, callback) {
+function getProjectId(document, sheet, projectData, callback) {
   var projectIdCell = {'min-row': 1, 'max-row': 1, 'min-col': 4, 'max-col': 4};
   sheet.getCells(projectIdCell, function (err, cells) {
     // We only expect a single cell.
+    if (!(cells.length > 0)) {
+      callback(new Error("ERROR en '"+ document.title +"'. No se encuentra el código del proyecto en la hoja '"+ sheet.title +"'"), null);
+    }
     projectData.code = cells[0].value;
     callback(null, sheet, projectData);
   });
