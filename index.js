@@ -104,7 +104,9 @@ function getResourceDedications(sheet, projectData, callback) {
 }
 
 function generateCSV(sheet, projectData) {
-  var weeks = projectData.resources[0].dedications.map(_formatDateFromDedication);
+  var weeks = projectData.resources[0].dedications.map(function (dedication) {
+    return dedication.week.getDate() + "/" + (dedication.week.getMonth() + 1) + "/" + dedication.week.getFullYear();
+  });
   var data = [];
   // Create headers
   data.push(["Codigo Proyecto", "Proyecto", "Recurso"].concat(weeks));
@@ -114,7 +116,7 @@ function generateCSV(sheet, projectData) {
     data.push([projectData.code, projectData.name, resource.name].concat(hours));
   });
   // Output the CSV file
-  csv.stringify(data, {header: true}, function(err, data) {
+  csv.stringify(data, {header: true, delimiter: ';', quote: true}, function(err, data) {
     var date = new Date();
     var fileName = date.getTime() + "_" + projectData.name + "_" + sheet.title + ".csv";
     s3.upload({Bucket: awsSettings.bucket, Key: 'csvs/'+ fileName, Body: data}, {}, function(err, data) {
@@ -134,10 +136,4 @@ function _parseWeek(cell) {
   } else {
     return null;
   }
-}
-
-function _formatDateFromDedication(dedication) {
-  var months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
-  var formatted = dedication.week.getDate() + "/" + (dedication.week.getMonth() + 1) + "/" + dedication.week.getFullYear();
-  return formatted + " ("+ months[dedication.week.getMonth()] +")";
 }
