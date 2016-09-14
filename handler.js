@@ -118,7 +118,7 @@ function generateCSV(sheet, projectData) {
   // Output the CSV file
   csv.stringify(data, {header: true, delimiter: ';', quote: true}, function(err, data) {
     var date = new Date();
-    var fileName = _getDateFolder(date) + projectData.name + "_" + sheet.title + "_" + date.getTime() + ".csv";
+    var fileName = _getDateFolder(date) + projectData.name + "_" + date.getTime() + ".csv";
     s3.upload({Bucket: awsSettings.bucket, Key: 'csvs/'+ fileName, Body: data}, {}, function(err, data) {
       if (err) { throw err; }
       console.log("Generated: " + data.Location);
