@@ -12,7 +12,7 @@ var numGeneratedFiles = 0;
 
 //////////// AWS LAMBDA ENTRY POINT ////////////
 
-module.exports.convert = function(event, context, responseCallback) {
+module.exports.convert_http = function(event, context, responseCallback) {
   if (!event.body.hasOwnProperty('documentIds')) {
     throw "The event must contain a list of 'documentIds'";
   }
@@ -20,6 +20,11 @@ module.exports.convert = function(event, context, responseCallback) {
     processDocument(documentId, responseCallback);
   });
 };
+
+module.exports.convert_schedule = function(event, context, responseCallback) {
+  // TODO 95% equal to `convert_http`
+};
+
 
 //////////// DOCUMENT PROCESSING FUNCTIONS ////////////
 
