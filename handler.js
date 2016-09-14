@@ -6,13 +6,18 @@ aws = require('aws-sdk');
 awsSettings = require('./resources/aws.json');
 s3 = new aws.S3();
 
+//////////// GLOBAL VARIABLES ////////////
 
-var sheetsToProcess = new Set();
-var numGeneratedFiles = 0;
+var globals = {
+  eventOrigin: "", // "http" or "cron",
+  numGeneratedFiles: 0, // Counts the number of generated files in the current execution
+  sheetsToProcess: new Set(), // Contains the IDs of the sheets that must be processed.
+};
 
 //////////// AWS LAMBDA ENTRY POINT ////////////
 
 module.exports.convert_http = function(event, context, responseCallback) {
+  globals.eventOrigin = "http";
   if (!event.body.hasOwnProperty('documentIds')) {
     throw "The event must contain a list of 'documentIds'";
   }
@@ -22,6 +27,7 @@ module.exports.convert_http = function(event, context, responseCallback) {
 };
 
 module.exports.convert_schedule = function(event, context, responseCallback) {
+  globals.eventOrigin = "cron";
   // TODO 95% equal to `convert_http`
 };
 
@@ -34,7 +40,7 @@ function processDocument(documentId, responseCallback) {
   doc.useServiceAccountAuth(creds, function (err) {
     doc.getInfo(function (err, info) {
       info.worksheets.forEach(function (sheet) {
-        sheetsToProcess.add(sheet.id);
+        globals.sheetsToProcess.add(sheet.id);
         async.waterfall([
           async.apply(getProjectName, info, sheet),
           getProjectId,
@@ -44,10 +50,13 @@ function processDocument(documentId, responseCallback) {
         ], function (err, sheet, projectData) {
           if (err) { throw(err);}
           generateCSV(sheet, projectData);
-          sheetsToProcess.delete(sheet.id);
-          numGeneratedFiles++;
-          if (sheetsToProcess.size === 0) {
-            responseCallback(null, "All sheets processed. "+ numGeneratedFiles + " files generated.");
+          globals.sheetsToProcess.delete(sheet.id);
+          globals.numGeneratedFiles++;
+          if (globals.sheetsToProcess.size === 0) {
+            if (globals.eventOrigin === "cron") {
+              // TODO send email.
+            }
+            responseCallback(null, "All sheets processed. "+ globals.numGeneratedFiles + " files generated.");
           }
         });
       });
@@ -139,7 +148,8 @@ function generateCSV(sheet, projectData) {
   csv.stringify(data, {header: true, delimiter: ';', quote: true}, function(err, data) {
     var date = new Date();
     var fileName = _getDateFolder(date) + projectData.name + "_" + date.getTime() + ".csv";
-    s3.upload({Bucket: awsSettings.bucket, Key: 'csvs/'+ fileName, Body: data}, {}, function(err, data) {
+    var dir = globals.eventOrigin === "cron" ? "cron/" : "http/";
+    s3.upload({Bucket: awsSettings.bucket, Key: dir + fileName, Body: data}, {}, function(err, data) {
       if (err) { throw err; }
       console.log("Generated: " + data.Location);
     });
