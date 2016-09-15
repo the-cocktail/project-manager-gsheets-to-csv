@@ -36,9 +36,9 @@ provider:
       Resource : "*"
 
 # you can overwrite defaults here
-#defaults:
+defaults:
+  region: eu-west-1
 #  stage: dev
-#  region: us-east-1
 
 # you can add packaging information here
 #package:
