@@ -12,7 +12,7 @@ zipFolder = require('zip-folder');
 
 var globals = {
   bucketName: "navision-to-csv",
-  generationFolder: "csvs_"+ (new Date()).getTime(),
+  generationFolder: "/tmp/csvs_"+ (new Date()).getTime(),
   eventOrigin: "", // "http" or "cron",
   erroredFiles: [], // Files with errors. All have a `sheet` and a `document`
   generatedFiles: [], // Files with no errors. All have a `sheet` a `document` and a `file`
@@ -33,6 +33,7 @@ module.exports.convert_http = function(event, context, callback) {
       zipFolder(globals.generationFolder, bundleName, function(err) {
         var bundle = fs.readFileSync(bundleName);
         s3.upload({Bucket: globals.bucketName, Key: bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
+          if (err) { throw err; }
           callback(null, _generateReport(data.Location));
         });
       });
@@ -50,6 +51,7 @@ module.exports.convert_schedule = function(event, context, responseCallback) {
       zipFolder(globals.generationFolder, bundleName, function(err) {
         var bundle = fs.readFileSync(bundleName);
         s3.upload({Bucket: globals.bucketName, Key: bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
+          if (err) { throw err; }
           var report = _generateReport(data.Location);
           _sendNotificationMail(report, function () {
             callback(null, report);
@@ -222,7 +224,7 @@ function _getBundleName() {
   // Sets the prefixes to print dates with two numbers. For example the mont 1 would be printed as "01".
   var ensurePrefix = function(x) { return x < 10 ? "0" + x : x; };
   var dateFormatted = date.getUTCFullYear() +"-"+ ensurePrefix(month) +"-"+ date.getDate() +"-"+ ensurePrefix(date.getHours()) +"-"+ ensurePrefix(date.getMinutes());
-  return "dedications_"+ dateFormatted +".zip";
+  return "/tmp/dedications_"+ dateFormatted +".zip";
 }
 
 function _generateReport(bundleUrl) {
