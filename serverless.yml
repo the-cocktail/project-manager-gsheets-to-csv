@@ -29,6 +29,11 @@ provider:
           - - "arn:aws:s3:::"
             - "Ref" : "NewResource"
             - "*"
+    - Effect: "Allow"
+      Action:
+        - "ses:SendEmail"
+        - "ses:SendRawEmail"
+      Resource : "*"
 
 # you can overwrite defaults here
 #defaults:
