@@ -9,6 +9,7 @@ ses = new aws.SES({region: "eu-west-1"});
 //////////// GLOBAL VARIABLES ////////////
 
 var globals = {
+  invokationDate: new Date(), // The date in which the event was invoked
   eventOrigin: "", // "http" or "cron",
   erroredFiles: [], // Files with errors. All have a `sheet` and a `document`
   generatedFiles: [], // Files with no errors. All have a `sheet` a `document` and a `file`
@@ -177,8 +178,7 @@ function generateCSV(document, sheet, projectData, callback) {
   });
   // Output the CSV file
   csv.stringify(data, {header: true, delimiter: ';', quote: true}, function(err, data) {
-    var date = new Date();
-    var fileName = _getDateFolder(date) + projectData.name + "_" + date.getTime() + ".csv";
+    var fileName = _getDateFolder() + "/" + projectData.name + "_" + globals.invokationDate.getTime() + ".csv";
     var dir = globals.eventOrigin === "cron" ? "cron/" : "http/";
     s3.upload({Bucket: "navision-to-csv", Key: dir + fileName, Body: data}, {}, function(err, generatedFileData) {
       if (err) {
@@ -202,10 +202,14 @@ function _parseWeek(cell) {
   }
 }
 
-function _getDateFolder(date) {
+function _getDateFolder() {
+  var date = globals.invokationDate;
   var month = (date.getUTCMonth() + 1);
-  var monthWithPrefix = month < 10 ? "0" + month : month;
-  return date.getUTCFullYear() +"/"+ monthWithPrefix +"/"+ date.getUTCDate() + "/";
+  // Sets the prefixes to print dates with two numbers. For example the mont 1 would be printed as "01".
+  var ensurePrefix = function(x) {
+    return x < 10 ? "0" + x : x;
+  }
+  return date.getUTCFullYear() +"/"+ ensurePrefix(month) +"/"+ date.getUTCDate() + "/"+ ensurePrefix(date.getHours()) + "/"+ ensurePrefix(date.getMinutes());
 }
 
 function _sendNotificationMail(responseCallback) {
