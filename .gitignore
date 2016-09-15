@@ -9,3 +9,7 @@ deploy.env
 
 # Serverless generated bundles
 .serverless/
+
+# Generated artifacts
+csvs_*
+dedications_*.zip
