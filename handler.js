@@ -10,21 +10,29 @@ ses = new aws.SES({region: "eu-west-1"});
 
 var globals = {
   eventOrigin: "", // "http" or "cron",
-  numGeneratedFiles: 0, // Counts the number of generated files in the current execution
+  erroredFiles: [], // Files with errors. All have a `sheet` and a `document`
+  generatedFiles: [], // Files with no errors. All have a `sheet` a `document` and a `file`
   sheetsToProcess: new Set(), // Contains the IDs of the sheets that must be processed.
 };
 
 //////////// AWS LAMBDA ENTRY POINT ////////////
 
-module.exports.convert_http = function(event, context, responseCallback) {
-  _sendNotificationMail(responseCallback);
-  // globals.eventOrigin = "http";
-  // if (!event.body.hasOwnProperty('documentIds')) {
-  //   throw "The event must contain a list of 'documentIds'";
-  // }
-  // event.body.documentIds.forEach(function (documentId) {
-  //   processDocument(documentId, responseCallback);
-  // });
+module.exports.convert_http = function(event, context, callback) {
+  globals.eventOrigin = "http";
+  if (!event.body.hasOwnProperty('documentIds')) {
+    throw "The event must contain a list of 'documentIds'";
+  }
+  event.body.documentIds.forEach(function (documentId) {
+    processDocument(documentId, function() {
+      var errors = globals.erroredFiles.map(function (err) {
+        return "[ERROR] Sheet '"+ err.sheet +"' of document '"+ err.document +"'";
+      });
+      var successes = globals.generatedFiles.map(function (suc) {
+        return "[SUCCESS] Sheet '"+ suc.sheet +"' of document '"+ suc.document +"'";
+      });
+      callback(null, "Process finished:\n"+ errors.join("\n") +"\n"+ successes.join("\n"));
+    });
+  });
 };
 
 module.exports.convert_schedule = function(event, context, responseCallback) {
@@ -48,16 +56,24 @@ function processDocument(documentId, responseCallback) {
           getResources,
           getResourceDepartments,
           getResourceDedications,
-        ], function (err, sheet, projectData) {
-          if (err) { throw(err);}
-          generateCSV(sheet, projectData);
-          globals.sheetsToProcess.delete(sheet.id);
-          globals.numGeneratedFiles++;
-          if (globals.sheetsToProcess.size === 0) {
-            if (globals.eventOrigin === "cron") {
-              // TODO send email.
-            }
-            responseCallback(null, "All sheets processed. "+ globals.numGeneratedFiles + " files generated.");
+          generateCSV,
+        ], function (err, document, sheet, projectData, generatedFileData) {
+          // Remove the current sheet of the list of sheets to be processed
+          globals.sheetsToProcess.delete(sheet.id); 
+          if (err) { // If there is a failure log it and add it to the list of errored files.
+            console.error("[ERROR] Could not generate CSV for sheet '"+ sheet.title +"' of document '"+ document.title +"'");
+            console.error(err.stack);
+            globals.erroredFiles.push({sheet: sheet.title, document: document.title});
+          } else { // If all is OK add the new file to the list of generated files.
+            console.log("[SUCCESS] Generated CSV for sheet '"+ sheet.title +"' of document '"+ document.title +"'");
+            globals.generatedFiles.push({
+              sheet: sheet.title,
+              document: document.title,
+              file: generatedFileData.key
+            });
+          }
+          if (globals.sheetsToProcess.size === 0) { // Computation finished. Send notification
+            responseCallback();
           }
         });
       });
@@ -68,72 +84,86 @@ function processDocument(documentId, responseCallback) {
 function getProjectName(document, sheet, callback) {
   var projectNameCell = {'min-row': 2, 'max-row': 2, 'min-col': 3, 'max-col': 3};
   sheet.getCells(projectNameCell, function (err, cells) {
-    // We only expect a single cell.
-    if (cells.length <= 0) {
-      callback(new Error("ERROR en '"+ document.title +"'. No se encuentra el nombre del proyecto en la hoja '"+ sheet.title +"'"), null);
+    try {
+      // We only expect a single cell.
+      var projectData = {name: cells[0].value};
+      callback(null, document, sheet, projectData);
+    } catch (e) {
+      callback(e, document, sheet, null);
     }
-    var project = {name: cells[0].value};
-    callback(null, document, sheet, project);
   });
 }
 
 function getProjectId(document, sheet, projectData, callback) {
   var projectIdCell = {'min-row': 1, 'max-row': 1, 'min-col': 4, 'max-col': 4};
   sheet.getCells(projectIdCell, function (err, cells) {
-    // We only expect a single cell.
-    if (cells.length <= 0) {
-      callback(new Error("ERROR en '"+ document.title +"'. No se encuentra el código del proyecto en la hoja '"+ sheet.title +"'"), null);
+    try {
+      // We only expect a single cell.
+      projectData.code = cells[0].value;
+      callback(null, document, sheet, projectData);
+    } catch (e) {
+      callback(e, document, sheet, projectData);
     }
-    projectData.code = cells[0].value;
-    callback(null, sheet, projectData);
   });
 }
 
-function getResources(sheet, projectData, callback) {
+function getResources(document, sheet, projectData, callback) {
   var resourceCells = {'min-row': 5, 'max-row': 5, 'return-empty': false};
   sheet.getCells(resourceCells, function (err, cells) {
-    projectData.resources = cells.map(function (cell) {
-      return {name: cell.value.replace("\n", " ")};
-    });
-    callback(null, sheet, projectData);
+    try {
+      projectData.resources = cells.map(function (cell) {
+        return {name: cell.value.replace("\n", " ")};
+      });
+      callback(null, document, sheet, projectData);
+    } catch (e) {
+      callback(e, document, sheet, projectData);
+    }
   });
 }
 
-function getResourceDepartments(sheet, projectData, callback) {
+function getResourceDepartments(document, sheet, projectData, callback) {
   var departmentCells = {'min-row': 3, 'max-row': 3, 'min-col': 3, 'max-col': 3 + projectData.resources.length - 1, 'return-empty': true};
   sheet.getCells(departmentCells, function (err, cells) {
-    var departments = cells.map(function (cell) { return cell.value; });
-    departments.forEach(function (department, index) {
-      projectData.resources[index].department = department;
-    });
-    callback(null, sheet, projectData);
+    try {
+      var departments = cells.map(function (cell) { return cell.value; });
+      departments.forEach(function (department, index) {
+        projectData.resources[index].department = department;
+      });
+      callback(null, document, sheet, projectData);
+    } catch (e) {
+      callback(e, document, sheet, projectData);
+    }
   });
 }
 
-function getResourceDedications(sheet, projectData, callback) {
+function getResourceDedications(document, sheet, projectData, callback) {
   var weekCells = {'min-row': 15, 'min-col': 1, 'max-col': 1};
   sheet.getCells(weekCells, function (err, cells) {
-    // We store an array of every registered week converted into a Date object.
-    // Values that are not dates will be stored as null.
-    var weeks = cells.map(_parseWeek);
-    var dedicationCells = {'min-row': 15, 'max-row': 15 + weeks.length - 1, 'min-col': 3, 'max-col': 3 + projectData.resources.length - 1, 'return-empty': true};
-    // Once we have registered all weeks, we go for the dedications.
-    sheet.getCells(dedicationCells, function (err, cells) {
-      projectData.resources = projectData.resources.map(function (resource, index) {
-        var resourceCol = 3 + index;
-        var resourceHours = cells.filter(function (cell) { return cell.col == resourceCol; });
-        // For each resource we get its dedicated hours, which are stored in an array
-        // so the resourceHours[X] represents the hours dedicated in the week[X]
-        resource.dedications = weeks.map(function (week, index) { return {week: week, dedication: resourceHours[index].value}; })
-                                    .filter(function (dedication) { return dedication.week !== null; });
-        return resource;
+    try {
+      // We store an array of every registered week converted into a Date object.
+      // Values that are not dates will be stored as null.
+      var weeks = cells.map(_parseWeek);
+      var dedicationCells = {'min-row': 15, 'max-row': 15 + weeks.length - 1, 'min-col': 3, 'max-col': 3 + projectData.resources.length - 1, 'return-empty': true};
+      // Once we have registered all weeks, we go for the dedications.
+      sheet.getCells(dedicationCells, function (err, cells) {
+        projectData.resources = projectData.resources.map(function (resource, index) {
+          var resourceCol = 3 + index;
+          var resourceHours = cells.filter(function (cell) { return cell.col == resourceCol; });
+          // For each resource we get its dedicated hours, which are stored in an array
+          // so the resourceHours[X] represents the hours dedicated in the week[X]
+          resource.dedications = weeks.map(function (week, index) { return {week: week, dedication: resourceHours[index].value}; })
+                                      .filter(function (dedication) { return dedication.week !== null; });
+          return resource;
+        });
+        callback(null, document, sheet, projectData);
       });
-      callback(null, sheet, projectData);
-    });
+    } catch (e) {
+      callback(e, document, sheet, projectData);
+    }
   });
 }
 
-function generateCSV(sheet, projectData) {
+function generateCSV(document, sheet, projectData, callback) {
   var weeks = projectData.resources[0].dedications.map(function (dedication) {
     return dedication.week.getDate() + "/" + (dedication.week.getMonth() + 1) + "/" + dedication.week.getFullYear();
   });
@@ -150,9 +180,12 @@ function generateCSV(sheet, projectData) {
     var date = new Date();
     var fileName = _getDateFolder(date) + projectData.name + "_" + date.getTime() + ".csv";
     var dir = globals.eventOrigin === "cron" ? "cron/" : "http/";
-    s3.upload({Bucket: "navision-to-csv", Key: dir + fileName, Body: data}, {}, function(err, data) {
-      if (err) { throw err; }
-      console.log("Generated: " + data.Location);
+    s3.upload({Bucket: "navision-to-csv", Key: dir + fileName, Body: data}, {}, function(err, generatedFileData) {
+      if (err) {
+        callback(e, document, sheet, projectData);
+      } else {
+        callback(null, document, sheet, projectData, generatedFileData);
+      }
     });
   });
 }
