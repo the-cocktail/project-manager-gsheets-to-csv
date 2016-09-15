@@ -223,7 +223,7 @@ function _getBundleName() {
   var month = (date.getUTCMonth() + 1);
   // Sets the prefixes to print dates with two numbers. For example the mont 1 would be printed as "01".
   var ensurePrefix = function(x) { return x < 10 ? "0" + x : x; };
-  var dateFormatted = date.getUTCFullYear() +"-"+ ensurePrefix(month) +"-"+ date.getDate() +"-"+ ensurePrefix(date.getHours()) +"-"+ ensurePrefix(date.getMinutes());
+  var dateFormatted = date.getUTCFullYear() +"-"+ ensurePrefix(month) +"-"+ date.getUTCDate() +"-"+ ensurePrefix(date.getUTCHours()) +"-"+ ensurePrefix(date.getUTCMinutes());
   return "dedications_"+ dateFormatted +".zip";
 }
 
@@ -234,7 +234,7 @@ function _generateReport(bundleUrl) {
   var successes = globals.generatedFiles.map(function (suc) {
     return "[SUCCESS] Sheet '"+ suc.sheet +"' of document '"+ suc.document +"'";
   });
-  return "Process finished:\n"+ errors.join("\n") +"\n"+ successes.join("\n") + "\nBundle available at: "+ bundleUrl;   
+  return "Process finished:\n"+ errors.join("\n") +"\n"+ successes.join("\n") + "\n Bundle available at: "+ bundleUrl;   
 }
 
 function _sendNotificationMail(report, callback) {
