@@ -50,15 +50,14 @@ package:
 functions:
   generateCsvHttp:
     handler: handler.convert_http
-    timeout: 60
+    timeout: 300
     events:
       - http:
           path: generate-csv
           method: post
   generateCsvSchedule:
     handler: handler.convert_schedule
-    timeout: 600
-    # schedule: cron(0 4 * * *)
+    timeout: 300
     schedule: cron(5 * * * *)
 
 #    you can add any of the following events
