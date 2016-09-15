@@ -20,10 +20,15 @@ provider:
   iamRoleStatements:
     - Effect: "Allow"
       Action:
-        - "s3:ListBucket"
         - "s3:PutObject"
         - "s3:GetObject"
-      Resource: { "Fn::Join" : ["", ["arn:aws:s3:::", { "Ref" : "ServerlessDeploymentBucket" }, { "Ref" : "NewResource" } ] ] }
+        - "s3:ListObject"
+      Resource:
+        Fn::Join:
+          - ""
+          - - "arn:aws:s3:::"
+            - "Ref" : "NewResource"
+            - "*"
 
 # you can overwrite defaults here
 #defaults:
