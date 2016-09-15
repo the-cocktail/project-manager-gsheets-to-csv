@@ -4,7 +4,7 @@ csv = require('csv');
 fs = require('fs');
 aws = require('aws-sdk');
 s3 = new aws.S3();
-ses = new aws.SES();
+ses = new aws.SES({region: "eu-west-1"});
 
 //////////// GLOBAL VARIABLES ////////////
 

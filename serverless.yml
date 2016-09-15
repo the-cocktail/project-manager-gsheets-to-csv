@@ -35,11 +35,6 @@ provider:
         - "ses:SendRawEmail"
       Resource : "*"
 
-# you can overwrite defaults here
-defaults:
-  region: eu-west-1
-#  stage: dev
-
 # you can add packaging information here
 #package:
 #  include:
