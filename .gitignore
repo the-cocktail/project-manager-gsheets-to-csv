@@ -7,3 +7,6 @@ resources/aws.json
 context.json
 deploy.env
 event.json
+
+# Serverless generated bundles
+.serverless/
