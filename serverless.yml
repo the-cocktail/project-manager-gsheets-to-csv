@@ -57,8 +57,9 @@ functions:
           method: post
   generateCsvSchedule:
     handler: handler.convert_schedule
-    timeout: 60
-    schedule: cron(0 4 * * *)
+    timeout: 600
+    # schedule: cron(0 4 * * *)
+    schedule: cron(5 * * * *)
 
 #    you can add any of the following events
 #    events:
