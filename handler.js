@@ -28,17 +28,12 @@ module.exports.convert_http = function(event, context, callback) {
   }
   event.body.documentIds.forEach(function (documentId) {
     processDocument(documentId, function() {
-      var errors = globals.erroredFiles.map(function (err) {
-        return "[ERROR] Sheet '"+ err.sheet +"' of document '"+ err.document +"'";
-      });
-      var successes = globals.generatedFiles.map(function (suc) {
-        return "[SUCCESS] Sheet '"+ suc.sheet +"' of document '"+ suc.document +"'";
-      });
+      // Generate the bundle, upload it to S3 and respond with a report.
       var bundleName = _getBundleName();
       zipFolder(globals.generationFolder, bundleName, function(err) {
         var bundle = fs.readFileSync(bundleName);
         s3.upload({Bucket: globals.bucketName, Key: bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
-          callback(null, "Process finished:\n"+ errors.join("\n") +"\n"+ successes.join("\n") + "\nBundle available at: "+ data.Location);   
+          callback(null, _generateReport(data.Location));
         });
       });
     });
@@ -47,7 +42,22 @@ module.exports.convert_http = function(event, context, callback) {
 
 module.exports.convert_schedule = function(event, context, responseCallback) {
   globals.eventOrigin = "cron";
-  // TODO 95% equal to `convert_http`
+  var eventData = require('./event.json');
+  eventData.documentIds.forEach(function (documentId) {
+    processDocument(documentId, function() {
+      // Generate the bundle, upload it to S3, send email notification and log report.
+      var bundleName = _getBundleName();
+      zipFolder(globals.generationFolder, bundleName, function(err) {
+        var bundle = fs.readFileSync(bundleName);
+        s3.upload({Bucket: globals.bucketName, Key: bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
+          var report = _generateReport(data.Location);
+          _sendNotificationMail(report, function () {
+            callback(null, report);
+          });
+        });
+      });
+    });
+  });
 };
 
 
@@ -215,7 +225,17 @@ function _getBundleName() {
   return "dedications_"+ dateFormatted +".zip";
 }
 
-function _sendNotificationMail(responseCallback) {
+function _generateReport(bundleUrl) {
+  var errors = globals.erroredFiles.map(function (err) {
+    return "[ERROR] Sheet '"+ err.sheet +"' of document '"+ err.document +"'";
+  });
+  var successes = globals.generatedFiles.map(function (suc) {
+    return "[SUCCESS] Sheet '"+ suc.sheet +"' of document '"+ suc.document +"'";
+  });
+  return "Process finished:\n"+ errors.join("\n") +"\n"+ successes.join("\n") + "\nBundle available at: "+ bundleUrl;   
+}
+
+function _sendNotificationMail(report, callback) {
   var params = {
     Destination: {
       BccAddresses: [],
@@ -225,11 +245,11 @@ function _sendNotificationMail(responseCallback) {
     Message: {
       Body: {
         Html: {
-          Data: '<h1>Message</h1>',
+          Data: report.replace("\n", "<br>"),
           Charset: 'UTF-8'
         },
         Text: {
-          Data: '# Message',
+          Data: report,
           Charset: 'UTF-8'
         }
       },
@@ -241,12 +261,7 @@ function _sendNotificationMail(responseCallback) {
     Source: 'cristian.alvarez@the-cocktail.com',
   };
   ses.sendEmail(params, function(err, data) {
-    if (err) {
-      console.error(err);
-      responseCallback("The email could not be sent. See the logs.");
-    } else {
-      console.log(data);
-      responseCallback("The email was sent.");
-    }
+    if (err) { throw err; }
+    callback();
   });
 }
