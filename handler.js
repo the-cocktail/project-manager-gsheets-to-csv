@@ -11,6 +11,7 @@ zipFolder = require('zip-folder');
 //////////// GLOBAL VARIABLES ////////////
 
 var globals = {
+  bucketName: "navision-to-csv",
   generationFolder: "csvs_"+ (new Date()).getTime(),
   eventOrigin: "", // "http" or "cron",
   erroredFiles: [], // Files with errors. All have a `sheet` and a `document`
@@ -33,10 +34,12 @@ module.exports.convert_http = function(event, context, callback) {
       var successes = globals.generatedFiles.map(function (suc) {
         return "[SUCCESS] Sheet '"+ suc.sheet +"' of document '"+ suc.document +"'";
       });
-      var bundleName = _getBundleName()
+      var bundleName = _getBundleName();
       zipFolder(globals.generationFolder, bundleName, function(err) {
-
-        callback(null, "Process finished:\n"+ errors.join("\n") +"\n"+ successes.join("\n"));   
+        var bundle = fs.readFileSync(bundleName);
+        s3.upload({Bucket: globals.bucketName, Key: bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
+          callback(null, "Process finished:\n"+ errors.join("\n") +"\n"+ successes.join("\n") + "\nBundle available at: "+ data.Location);   
+        });
       });
     });
   });       
