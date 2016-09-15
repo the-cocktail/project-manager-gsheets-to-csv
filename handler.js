@@ -5,11 +5,13 @@ fs = require('fs');
 aws = require('aws-sdk');
 s3 = new aws.S3();
 ses = new aws.SES({region: "eu-west-1"});
+sanitize = require("sanitize-filename");
+zipFolder = require('zip-folder');
 
 //////////// GLOBAL VARIABLES ////////////
 
 var globals = {
-  invokationDate: new Date(), // The date in which the event was invoked
+  generationFolder: "csvs_"+ (new Date()).getTime(),
   eventOrigin: "", // "http" or "cron",
   erroredFiles: [], // Files with errors. All have a `sheet` and a `document`
   generatedFiles: [], // Files with no errors. All have a `sheet` a `document` and a `file`
@@ -31,9 +33,13 @@ module.exports.convert_http = function(event, context, callback) {
       var successes = globals.generatedFiles.map(function (suc) {
         return "[SUCCESS] Sheet '"+ suc.sheet +"' of document '"+ suc.document +"'";
       });
-      callback(null, "Process finished:\n"+ errors.join("\n") +"\n"+ successes.join("\n"));
+      var bundleName = _getBundleName()
+      zipFolder(globals.generationFolder, bundleName, function(err) {
+
+        callback(null, "Process finished:\n"+ errors.join("\n") +"\n"+ successes.join("\n"));   
+      });
     });
-  });
+  });       
 };
 
 module.exports.convert_schedule = function(event, context, responseCallback) {
@@ -58,7 +64,7 @@ function processDocument(documentId, responseCallback) {
           getResourceDepartments,
           getResourceDedications,
           generateCSV,
-        ], function (err, document, sheet, projectData, generatedFileData) {
+        ], function (err, document, sheet, projectData) {
           // Remove the current sheet of the list of sheets to be processed
           globals.sheetsToProcess.delete(sheet.id); 
           if (err) { // If there is a failure log it and add it to the list of errored files.
@@ -70,7 +76,6 @@ function processDocument(documentId, responseCallback) {
             globals.generatedFiles.push({
               sheet: sheet.title,
               document: document.title,
-              file: generatedFileData.key
             });
           }
           if (globals.sheetsToProcess.size === 0) { // Computation finished. Send notification
@@ -178,15 +183,11 @@ function generateCSV(document, sheet, projectData, callback) {
   });
   // Output the CSV file
   csv.stringify(data, {header: true, delimiter: ';', quote: true}, function(err, data) {
-    var fileName = _getDateFolder() + "/" + projectData.name + "_" + globals.invokationDate.getTime() + ".csv";
-    var dir = globals.eventOrigin === "cron" ? "cron/" : "http/";
-    s3.upload({Bucket: "navision-to-csv", Key: dir + fileName, Body: data}, {}, function(err, generatedFileData) {
-      if (err) {
-        callback(e, document, sheet, projectData);
-      } else {
-        callback(null, document, sheet, projectData, generatedFileData);
-      }
-    });
+    if (!fs.existsSync(globals.generationFolder)) {
+      fs.mkdirSync(globals.generationFolder);
+    }
+    fs.writeFileSync(globals.generationFolder + "/" + sanitize(projectData.name) + ".csv", data);
+    callback(null, document, sheet, projectData);
   });
 }
 
@@ -202,14 +203,13 @@ function _parseWeek(cell) {
   }
 }
 
-function _getDateFolder() {
-  var date = globals.invokationDate;
+function _getBundleName() {
+  var date = new Date();
   var month = (date.getUTCMonth() + 1);
   // Sets the prefixes to print dates with two numbers. For example the mont 1 would be printed as "01".
-  var ensurePrefix = function(x) {
-    return x < 10 ? "0" + x : x;
-  }
-  return date.getUTCFullYear() +"/"+ ensurePrefix(month) +"/"+ date.getUTCDate() + "/"+ ensurePrefix(date.getHours()) + "/"+ ensurePrefix(date.getMinutes());
+  var ensurePrefix = function(x) { return x < 10 ? "0" + x : x; };
+  var dateFormatted = date.getUTCFullYear() +"-"+ ensurePrefix(month) +"-"+ date.getDate() +"-"+ ensurePrefix(date.getHours()) +"-"+ ensurePrefix(date.getMinutes());
+  return "dedications_"+ dateFormatted +".zip";
 }
 
 function _sendNotificationMail(responseCallback) {

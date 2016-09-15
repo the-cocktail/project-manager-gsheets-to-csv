@@ -11,7 +11,9 @@
     "async": "^2.0.0-rc.6",
     "aws-sdk": "^2.4.1",
     "csv": "^1.1.0",
-    "google-spreadsheet": "^2.0.3"
+    "google-spreadsheet": "^2.0.3",
+    "sanitize-filename": "^1.6.0",
+    "zip-folder": "^1.0.0"
   },
   "devDependencies": {
     "serverless": "^1.0.0-rc.1",
