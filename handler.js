@@ -4,6 +4,7 @@ csv = require('csv');
 fs = require('fs');
 aws = require('aws-sdk');
 s3 = new aws.S3();
+ses = new aws.SES({region: "eu-west-1"});
 
 //////////// GLOBAL VARIABLES ////////////
 
@@ -16,13 +17,14 @@ var globals = {
 //////////// AWS LAMBDA ENTRY POINT ////////////
 
 module.exports.convert_http = function(event, context, responseCallback) {
-  globals.eventOrigin = "http";
-  if (!event.body.hasOwnProperty('documentIds')) {
-    throw "The event must contain a list of 'documentIds'";
-  }
-  event.body.documentIds.forEach(function (documentId) {
-    processDocument(documentId, responseCallback);
-  });
+  _sendNotificationMail(responseCallback);
+  // globals.eventOrigin = "http";
+  // if (!event.body.hasOwnProperty('documentIds')) {
+  //   throw "The event must contain a list of 'documentIds'";
+  // }
+  // event.body.documentIds.forEach(function (documentId) {
+  //   processDocument(documentId, responseCallback);
+  // });
 };
 
 module.exports.convert_schedule = function(event, context, responseCallback) {
@@ -171,4 +173,40 @@ function _getDateFolder(date) {
   var month = (date.getUTCMonth() + 1);
   var monthWithPrefix = month < 10 ? "0" + month : month;
   return date.getUTCFullYear() +"/"+ monthWithPrefix +"/"+ date.getUTCDate() + "/";
+}
+
+function _sendNotificationMail(responseCallback) {
+  var params = {
+    Destination: {
+      BccAddresses: [],
+      CcAddresses: [],
+      ToAddresses: ["cristian.alvarez@the-cocktail.com"]
+    },
+    Message: {
+      Body: {
+        Html: {
+          Data: '<h1>Message</h1>',
+          Charset: 'UTF-8'
+        },
+        Text: {
+          Data: '# Message',
+          Charset: 'UTF-8'
+        }
+      },
+      Subject: {
+        Data: 'TEST SUBJECT',
+        Charset: 'UTF-8'
+      }
+    },
+    Source: 'cristian.alvarez@the-cocktail.com',
+  };
+  ses.sendEmail(params, function(err, data) {
+    if (err) {
+      console.error(err);
+      responseCallback("The email could not be sent. See the logs.");
+    } else {
+      console.log(data);
+      responseCallback("The email was sent.");
+    }
+  });
 }

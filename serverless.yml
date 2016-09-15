@@ -29,11 +29,11 @@ provider:
           - - "arn:aws:s3:::"
             - "Ref" : "NewResource"
             - "*"
-
-# you can overwrite defaults here
-#defaults:
-#  stage: dev
-#  region: us-east-1
+    - Effect: "Allow"
+      Action:
+        - "ses:SendEmail"
+        - "ses:SendRawEmail"
+      Resource : "*"
 
 # you can add packaging information here
 #package:
