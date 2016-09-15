@@ -30,8 +30,8 @@ module.exports.convert_http = function(event, context, callback) {
     processDocument(documentId, function() {
       // Generate the bundle, upload it to S3 and respond with a report.
       var bundleName = _getBundleName();
-      zipFolder(globals.generationFolder, bundleName, function(err) {
-        var bundle = fs.readFileSync(bundleName);
+      zipFolder(globals.generationFolder, "/tmp/"+ bundleName, function(err) {
+        var bundle = fs.readFileSync("/tmp/"+ bundleName);
         s3.upload({Bucket: globals.bucketName, Key: bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
           if (err) { throw err; }
           callback(null, _generateReport(data.Location));
@@ -49,8 +49,8 @@ module.exports.convert_schedule = function(event, context, responseCallback) {
       // Generate the bundle, upload it to S3, send email notification and log report.
       var bundleName = _getBundleName();
       zipFolder(globals.generationFolder, bundleName, function(err) {
-        var bundle = fs.readFileSync(bundleName);
-        s3.upload({Bucket: globals.bucketName, Key: bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
+        var bundle = fs.readFileSync("/tmp/"+ bundleName);
+        s3.upload({Bucket: globals.bucketName, Key: "/tmp/"+ bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
           if (err) { throw err; }
           var report = _generateReport(data.Location);
           _sendNotificationMail(report, function () {
@@ -224,7 +224,7 @@ function _getBundleName() {
   // Sets the prefixes to print dates with two numbers. For example the mont 1 would be printed as "01".
   var ensurePrefix = function(x) { return x < 10 ? "0" + x : x; };
   var dateFormatted = date.getUTCFullYear() +"-"+ ensurePrefix(month) +"-"+ date.getDate() +"-"+ ensurePrefix(date.getHours()) +"-"+ ensurePrefix(date.getMinutes());
-  return "/tmp/dedications_"+ dateFormatted +".zip";
+  return "dedications_"+ dateFormatted +".zip";
 }
 
 function _generateReport(bundleUrl) {
