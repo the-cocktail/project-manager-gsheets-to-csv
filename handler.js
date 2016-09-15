@@ -178,19 +178,27 @@ function _getDateFolder(date) {
 function _sendNotificationMail(responseCallback) {
   var params = {
     Destination: {
+      BccAddresses: [],
+      CcAddresses: [],
       ToAddresses: ["cristian.alvarez@the-cocktail.com"]
     },
     Message: {
-        Subject: {
-          Data: "Prueba",
+      Body: {
+        Html: {
+          Data: '<h1>Message</h1>',
           Charset: 'UTF-8'
         },
-        Body: {
-          Data: "BODY",
-          Charset: "UTF-8"
+        Text: {
+          Data: '# Message',
+          Charset: 'UTF-8'
         }
+      },
+      Subject: {
+        Data: 'TEST SUBJECT',
+        Charset: 'UTF-8'
+      }
     },
-    Source: "cristian.alvarez@the-cocktail.com",
+    Source: 'cristian.alvarez@the-cocktail.com',
   };
   ses.sendEmail(params, function(err, data) {
     if (err) {
