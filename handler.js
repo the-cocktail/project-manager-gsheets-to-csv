@@ -26,48 +26,112 @@ module.exports.convert_http = function(event, context, callback) {
   if (!event.body.hasOwnProperty('documentIds')) {
     throw "The event must contain a list of 'documentIds'";
   }
-  event.body.documentIds.forEach(function (documentId) {
-    processDocument(documentId, function() {
-      // Generate the bundle, upload it to S3 and respond with a report.
-      var bundleName = _getBundleName();
-      console.log("[SUCCESS] Generating bundle: "+ bundleName);
-      zipFolder(globals.generationFolder, "/tmp/"+ bundleName, function(err) {
-        var bundle = fs.readFileSync("/tmp/"+ bundleName);
-        s3.upload({Bucket: globals.bucketName, Key: bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
-          if (err) { throw err; }
-          console.log("[SUCCESS] Bundle "+ bundleName +" uploaded to S3.")
-          callback(null, _generateReport(data.Location));
-        });
-      });
-    });
-  });       
-};
-
-module.exports.convert_schedule = function(event, context, responseCallback) {
-  globals.eventOrigin = "cron";
-  var eventData = require('./event.json');
-  eventData.documentIds.forEach(function (documentId) {
-    processDocument(documentId, function() {
-      // Generate the bundle, upload it to S3, send email notification and log report.
-      var bundleName = _getBundleName();
-      zipFolder(globals.generationFolder, bundleName, function(err) {
-        var bundle = fs.readFileSync("/tmp/"+ bundleName);
-        s3.upload({Bucket: globals.bucketName, Key: "/tmp/"+ bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
-          if (err) { throw err; }
-          var report = _generateReport(data.Location);
-          _sendNotificationMail(report, function () {
-            callback(null, report);
-          });
-        });
+  getSheets(event.body.documentIds, function (sheetsWithDocuments) {
+    processSheets(sheetsWithDocuments, function () {
+      generateBundle(function (bundlePath) {
+        callback(null, bundlePath);
       });
     });
   });
 };
 
+// module.exports.convert_schedule = function(event, context, responseCallback) {
+//   globals.eventOrigin = "cron";
+//   var eventData = require('./event.json');
+//   // eventData.documentIds.forEach(function (documentId) {
+//   //   fetchSheetsFromDocument(documentId);
+//   // });
+//   getSheets(eventData.documentIds, function (err, sheets) {
+//     if (err) { throw err; }
+//     console.log(sheets);
+//   });
+//   // function() {
+//   //     // Generate the bundle, upload it to S3, send email notification and log report.
+//   //     var bundleName = _getBundleName();
+//   //     zipFolder(globals.generationFolder, bundleName, function(err) {
+//   //       var bundle = fs.readFileSync("/tmp/"+ bundleName);
+//   //       s3.upload({Bucket: globals.bucketName, Key: "/tmp/"+ bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
+//   //         if (err) { throw err; }
+//   //         var report = _generateReport(data.Location);
+//   //         _sendNotificationMail(report, function () {
+//   //           callback(null, report);
+//   //         });
+//   //       });
+//   //     });
+//   //   }
+// };
+
+/**
+ * Calls the given callback with a list of objects like {sheet: sheetObject, document: documentObject}
+ * for the given document ID.
+ */
+function getSheets(documentIds, callback) {
+  var credentials = require('./resources/credentials.json');
+  var getSheetsFromDocument = function (documentId, step) {
+    var doc = new GoogleSpreadsheet(documentId);
+    doc.useServiceAccountAuth(credentials, function (err) {
+      if (err) { throw err; }
+      doc.getInfo(function (err, info) {
+        var sheetsWithDoc = info.worksheets.map(function (sheet) { return({document: info, sheet: sheet}); });
+        step(null, sheetsWithDoc);
+      });
+    });
+  };
+  async.map(documentIds, getSheetsFromDocument, function (err, listOfSheets) {
+    if (err) { throw err; }
+    callback([].concat.apply([], listOfSheets));
+  });
+}
+
+/**
+ * Generates CSV files for the given list of sheets with documents. Calls the given callback after
+ * generating all files.
+ */
+function processSheets(sheetsWithDocuments, callback) {
+  var processSheet = function (sheetWithDocument, step) {
+    var sheet = sheetWithDocument.sheet;
+    var document = sheetWithDocument.document;
+    async.waterfall([
+      async.apply(getProjectName, document, sheet),
+      getProjectId,
+      getResources,
+      getResourceDepartments,
+      getResourceDedications,
+      generateCSV
+    ], function (err, document, sheet, projectData) {
+      if (err) {
+        console.error("[ERROR] Could not generate CSV for sheet '"+ sheet.title +"' of document '"+ document.title +"'");
+        step(err);
+      } else {
+        console.log("[SUCCESS] Generated CSV for sheet '"+ sheet.title +"' of document '"+ document.title +"'");
+        step();
+      }
+    });
+  };
+  async.each(sheetsWithDocuments, processSheet, function (err) {
+    if (err) { throw err; }
+    callback();
+  });
+}
+
+/**
+ * Generates a ZIP and calls the given callback with its path.
+ */
+function generateBundle(callback) {
+  var bundleName = _getBundleName();
+  zipFolder(globals.generationFolder, "/tmp/"+ bundleName, function(err) {
+    var bundle = fs.readFileSync("/tmp/"+ bundleName);
+    s3.upload({Bucket: globals.bucketName, Key: bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
+      if (err) { throw err; }
+      console.log("[SUCCESS] Bundle "+ bundleName +" uploaded to S3.")
+      callback(data.Location);
+    });
+  });
+}
 
 //////////// DOCUMENT PROCESSING FUNCTIONS ////////////
 
-function processDocument(documentId, responseCallback) {
+function fetchSheetsFromDocument(documentId) {
   var doc = new GoogleSpreadsheet(documentId);
   var creds = require('./resources/credentials.json');
   doc.useServiceAccountAuth(creds, function (err) {
@@ -75,7 +139,6 @@ function processDocument(documentId, responseCallback) {
       info.worksheets.forEach(function (sheet) {
         globals.sheetsToProcess.push({document: info, sheet: sheet});
       });
-      processSheet(responseCallback);
     });
   });
 }
@@ -90,28 +153,7 @@ function processSheet(responseCallback) {
     console.log("[INFO] Processing new sheet. Only "+ globals.sheetsToProcess.length +" to go.");
     var document = item.document;
     var sheet = item.sheet;
-    async.waterfall([
-      async.apply(getProjectName, document, sheet),
-      getProjectId,
-      getResources,
-      getResourceDepartments,
-      getResourceDedications,
-      generateCSV
-    ], function (err, document, sheet, projectData) {
-      // Remove the current sheet of the list of sheets to be processed
-      if (err) { // If there is a failure log it and add it to the list of errored files.
-        console.error("[ERROR] Could not generate CSV for sheet '"+ sheet.title +"' of document '"+ document.title +"'");
-        console.error(err.stack);
-        globals.erroredFiles.push({sheet: sheet.title, document: document.title});
-      } else { // If all is OK add the new file to the list of generated files.
-        console.log("[SUCCESS] Generated CSV for sheet '"+ sheet.title +"' of document '"+ document.title +"'");
-        globals.generatedFiles.push({
-          sheet: sheet.title,
-          document: document.title,
-        });
-      }
-      processSheet(responseCallback);
-    });
+    
   }
 }
 
