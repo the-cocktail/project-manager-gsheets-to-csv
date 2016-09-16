@@ -22,7 +22,9 @@ module.exports.convert_http = function(event, context, callback) {
   getSheets(event.body.documentIds, function (sheetsWithDocuments) {
     processSheets(sheetsWithDocuments, function () {
       generateBundle(function (bundlePath) {
-        callback(null, bundlePath);
+        sendNotificationMail(bundlePath, function() {
+          callback(null, bundlePath);
+        });
       });
     });
   });
@@ -117,9 +119,40 @@ function generateBundle(callback) {
     var bundle = fs.readFileSync("/tmp/"+ bundleName);
     s3.upload({Bucket: bucketName, Key: bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
       if (err) { throw err; }
-      console.log("[SUCCESS] Bundle "+ bundleName +" uploaded to S3.")
+      console.log("[SUCCESS] Bundle "+ bundleName +" uploaded to S3. Can be downloaded at "+ data.Location);
       callback(data.Location);
     });
+  });
+}
+
+function sendNotificationMail(report, callback) {
+  var params = {
+    Destination: {
+      BccAddresses: [],
+      CcAddresses: [],
+      ToAddresses: ["cristian.alvarez@the-cocktail.com"]
+    },
+    Message: {
+      Body: {
+        Html: {
+          Data: report.replace("\n", "<br>"),
+          Charset: 'UTF-8'
+        },
+        Text: {
+          Data: report,
+          Charset: 'UTF-8'
+        }
+      },
+      Subject: {
+        Data: 'TEST SUBJECT',
+        Charset: 'UTF-8'
+      }
+    },
+    Source: 'cristian.alvarez@the-cocktail.com',
+  };
+  ses.sendEmail(params, function(err, data) {
+    if (err) { throw err; }
+    callback();
   });
 }
 
@@ -253,35 +286,4 @@ function _getBundleName() {
   var ensurePrefix = function(x) { return x < 10 ? "0" + x : x; };
   var dateFormatted = date.getUTCFullYear() +"-"+ ensurePrefix(month) +"-"+ date.getUTCDate() +"-"+ ensurePrefix(date.getUTCHours()) +"-"+ ensurePrefix(date.getUTCMinutes());
   return "dedications_"+ dateFormatted +".zip";
-}
-
-function _sendNotificationMail(report, callback) {
-  var params = {
-    Destination: {
-      BccAddresses: [],
-      CcAddresses: [],
-      ToAddresses: ["cristian.alvarez@the-cocktail.com"]
-    },
-    Message: {
-      Body: {
-        Html: {
-          Data: report.replace("\n", "<br>"),
-          Charset: 'UTF-8'
-        },
-        Text: {
-          Data: report,
-          Charset: 'UTF-8'
-        }
-      },
-      Subject: {
-        Data: 'TEST SUBJECT',
-        Charset: 'UTF-8'
-      }
-    },
-    Source: 'cristian.alvarez@the-cocktail.com',
-  };
-  ses.sendEmail(params, function(err, data) {
-    if (err) { throw err; }
-    callback();
-  });
 }
