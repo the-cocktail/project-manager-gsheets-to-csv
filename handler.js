@@ -16,7 +16,7 @@ var globals = {
   eventOrigin: "", // "http" or "cron",
   erroredFiles: [], // Files with errors. All have a `sheet` and a `document`
   generatedFiles: [], // Files with no errors. All have a `sheet` a `document` and a `file`
-  sheetsToProcess: new Set(), // Contains the IDs of the sheets that must be processed.
+  sheetsToProcess: [], // Contains the IDs of the sheets that must be processed.
 };
 
 //////////// AWS LAMBDA ENTRY POINT ////////////
@@ -30,10 +30,12 @@ module.exports.convert_http = function(event, context, callback) {
     processDocument(documentId, function() {
       // Generate the bundle, upload it to S3 and respond with a report.
       var bundleName = _getBundleName();
+      console.log("[SUCCESS] Generating bundle: "+ bundleName);
       zipFolder(globals.generationFolder, "/tmp/"+ bundleName, function(err) {
         var bundle = fs.readFileSync("/tmp/"+ bundleName);
         s3.upload({Bucket: globals.bucketName, Key: bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
           if (err) { throw err; }
+          console.log("[SUCCESS] Bundle "+ bundleName +" uploaded to S3.")
           callback(null, _generateReport(data.Location));
         });
       });
@@ -71,35 +73,46 @@ function processDocument(documentId, responseCallback) {
   doc.useServiceAccountAuth(creds, function (err) {
     doc.getInfo(function (err, info) {
       info.worksheets.forEach(function (sheet) {
-        globals.sheetsToProcess.add(sheet.id);
-        async.waterfall([
-          async.apply(getProjectName, info, sheet),
-          getProjectId,
-          getResources,
-          getResourceDepartments,
-          getResourceDedications,
-          generateCSV,
-        ], function (err, document, sheet, projectData) {
-          // Remove the current sheet of the list of sheets to be processed
-          globals.sheetsToProcess.delete(sheet.id); 
-          if (err) { // If there is a failure log it and add it to the list of errored files.
-            console.error("[ERROR] Could not generate CSV for sheet '"+ sheet.title +"' of document '"+ document.title +"'");
-            console.error(err.stack);
-            globals.erroredFiles.push({sheet: sheet.title, document: document.title});
-          } else { // If all is OK add the new file to the list of generated files.
-            console.log("[SUCCESS] Generated CSV for sheet '"+ sheet.title +"' of document '"+ document.title +"'");
-            globals.generatedFiles.push({
-              sheet: sheet.title,
-              document: document.title,
-            });
-          }
-          if (globals.sheetsToProcess.size === 0) { // Computation finished. Send notification
-            responseCallback();
-          }
-        });
+        globals.sheetsToProcess.push({document: info, sheet: sheet});
       });
+      processSheet(responseCallback);
     });
   });
+}
+
+function processSheet(responseCallback) {
+  if (globals.sheetsToProcess.length === 0) {
+    // TODO Generar fichero 
+    console.log("[INFO] All sheets processed.");
+    responseCallback();
+  } else {
+    var item = globals.sheetsToProcess.pop();
+    console.log("[INFO] Processing new sheet. Only "+ globals.sheetsToProcess.length +" to go.");
+    var document = item.document;
+    var sheet = item.sheet;
+    async.waterfall([
+      async.apply(getProjectName, document, sheet),
+      getProjectId,
+      getResources,
+      getResourceDepartments,
+      getResourceDedications,
+      generateCSV
+    ], function (err, document, sheet, projectData) {
+      // Remove the current sheet of the list of sheets to be processed
+      if (err) { // If there is a failure log it and add it to the list of errored files.
+        console.error("[ERROR] Could not generate CSV for sheet '"+ sheet.title +"' of document '"+ document.title +"'");
+        console.error(err.stack);
+        globals.erroredFiles.push({sheet: sheet.title, document: document.title});
+      } else { // If all is OK add the new file to the list of generated files.
+        console.log("[SUCCESS] Generated CSV for sheet '"+ sheet.title +"' of document '"+ document.title +"'");
+        globals.generatedFiles.push({
+          sheet: sheet.title,
+          document: document.title,
+        });
+      }
+      processSheet(responseCallback);
+    });
+  }
 }
 
 function getProjectName(document, sheet, callback) {
@@ -167,9 +180,13 @@ function getResourceDedications(document, sheet, projectData, callback) {
       var dedicationCells = {'min-row': 15, 'max-row': 15 + weeks.length - 1, 'min-col': 3, 'max-col': 3 + projectData.resources.length - 1, 'return-empty': true};
       // Once we have registered all weeks, we go for the dedications.
       sheet.getCells(dedicationCells, function (err, cells) {
+        if (err) { return callback(err, document, sheet, projectData); };
         projectData.resources = projectData.resources.map(function (resource, index) {
           var resourceCol = 3 + index;
-          var resourceHours = cells.filter(function (cell) { return cell.col == resourceCol; });
+          var resourcehours = [];
+          if (cells) {
+            resourceHours = cells.filter(function (cell) { return cell.col == resourceCol; });
+          }
           // For each resource we get its dedicated hours, which are stored in an array
           // so the resourceHours[X] represents the hours dedicated in the week[X]
           resource.dedications = weeks.map(function (week, index) { return {week: week, dedication: resourceHours[index].value}; })
