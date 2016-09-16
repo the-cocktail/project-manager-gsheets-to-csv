@@ -31,31 +31,19 @@ module.exports.convert_http = function(event, context, callback) {
   });
 };
 
-// module.exports.convert_schedule = function(event, context, responseCallback) {
-//   globals.eventOrigin = "cron";
-//   var eventData = require('./event.json');
-//   // eventData.documentIds.forEach(function (documentId) {
-//   //   fetchSheetsFromDocument(documentId);
-//   // });
-//   getSheets(eventData.documentIds, function (err, sheets) {
-//     if (err) { throw err; }
-//     console.log(sheets);
-//   });
-//   // function() {
-//   //     // Generate the bundle, upload it to S3, send email notification and log report.
-//   //     var bundleName = _getBundleName();
-//   //     zipFolder(globals.generationFolder, bundleName, function(err) {
-//   //       var bundle = fs.readFileSync("/tmp/"+ bundleName);
-//   //       s3.upload({Bucket: globals.bucketName, Key: "/tmp/"+ bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
-//   //         if (err) { throw err; }
-//   //         var report = _generateReport(data.Location);
-//   //         _sendNotificationMail(report, function () {
-//   //           callback(null, report);
-//   //         });
-//   //       });
-//   //     });
-//   //   }
-// };
+module.exports.convert_schedule = function(event, context, responseCallback) {
+  var eventData = require('./event.json');
+  getSheets(eventData.documentIds, function (sheetsWithDocuments) {
+    processSheets(sheetsWithDocuments, function (generated, failed) {
+      generateBundle(function (bundlePath) {
+        sendNotificationMail(bundlePath, generated, failed, function() {
+          console.log("[INFO] Processing finished.");
+          callback(null, bundlePath);
+        });
+      });
+    });
+  });
+};
 
 //////////// HIGH LEVEL FILE PROCESSING ////////////
 
