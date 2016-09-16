@@ -12,10 +12,12 @@ zipFolder = require('zip-folder');
 
 var generationFolder = "/tmp/csvs_"+ (new Date()).getTime();
 var bucketName = "navision-to-csv";
+var entryPoint = ""; // "http" or "cron"
 
 //////////// AWS LAMBDA ENTRY POINT ////////////
 
 module.exports.convert_http = function(event, context, callback) {
+  entryPoint = "http";
   if (!event.body.hasOwnProperty('documentIds')) {
     throw "The event must contain a list of 'documentIds'";
   }
@@ -32,6 +34,7 @@ module.exports.convert_http = function(event, context, callback) {
 };
 
 module.exports.convert_schedule = function(event, context, responseCallback) {
+  entryPoint = "cron";  
   var eventData = require('./event.json');
   getSheets(eventData.documentIds, function (sheetsWithDocuments) {
     processSheets(sheetsWithDocuments, function (generated, failed) {
@@ -130,9 +133,9 @@ function sendNotificationMail(bundlePath, generatedFiles, failedFiles, callback)
 
   var params = {
     Destination: {
-      BccAddresses: [],
+      BccAddresses: entryPoint === "cron" ? ["cristian.alvarez@the-cocktail.com"] : [],
       CcAddresses: [],
-      ToAddresses: ["cristian.alvarez@the-cocktail.com"]
+      ToAddresses: entryPoint === "cron" ? ["finanzas.esp@the-cocktail.com"] : ["cristian.alvarez@the-cocktail.com"],
     },
     Message: {
       Body: {
