@@ -101,11 +101,10 @@ function processSheets(sheetsWithDocuments, callback) {
     ], function (err, document, sheet, projectData) {
       if (err) {
         console.error("[ERROR] Could not generate CSV for sheet '"+ sheet.title +"' of document '"+ document.title +"'");
-        step(err);
       } else {
         console.log("[SUCCESS] Generated CSV for sheet '"+ sheet.title +"' of document '"+ document.title +"'");
-        step();
       }
+      step(); // Keep processing even when a file fails
     });
   };
   async.each(sheetsWithDocuments, processSheet, function (err) {
