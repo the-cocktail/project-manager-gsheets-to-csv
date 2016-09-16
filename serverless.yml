@@ -60,7 +60,7 @@ functions:
     handler: handler.convert_schedule
     timeout: 300
     events:
-      - schedule: cron(5 * * * *)
+      - schedule: cron(5 * * * ? *)
 
 #    you can add any of the following events
 #    events:
