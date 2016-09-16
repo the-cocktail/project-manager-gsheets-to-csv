@@ -23,7 +23,7 @@ module.exports.convert_http = function(event, context, callback) {
     processSheets(sheetsWithDocuments, function (generated, failed) {
       generateBundle(function (bundlePath) {
         sendNotificationMail(bundlePath, generated, failed, function() {
-          console.log("[INFO] Processing finished. The generated bundle is stored at: "+ bundlePath);
+          console.log("[INFO] Processing finished.");
           callback(null, bundlePath);
         });
       });
