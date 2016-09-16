@@ -146,7 +146,7 @@ function sendNotificationMail(bundlePath, generatedFiles, failedFiles, callback)
         }
       },
       Subject: {
-        Data: 'TEST SUBJECT',
+        Data: 'Dedicaciones para Navision. Generado: '+  (new Date()).toGMTString(),
         Charset: 'UTF-8'
       }
     },
