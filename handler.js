@@ -20,9 +20,10 @@ module.exports.convert_http = function(event, context, callback) {
     throw "The event must contain a list of 'documentIds'";
   }
   getSheets(event.body.documentIds, function (sheetsWithDocuments) {
-    processSheets(sheetsWithDocuments, function () {
+    processSheets(sheetsWithDocuments, function (generated, failed) {
       generateBundle(function (bundlePath) {
-        sendNotificationMail(bundlePath, function() {
+        sendNotificationMail(bundlePath, generated, failed, function() {
+          console.log("[INFO] Processing finished. The generated bundle is stored at: "+ bundlePath);
           callback(null, bundlePath);
         });
       });
@@ -85,6 +86,8 @@ function getSheets(documentIds, callback) {
  * generating all files.
  */
 function processSheets(sheetsWithDocuments, callback) {
+  var generated = [];
+  var failed = [];
   var processSheet = function (sheetWithDocument, step) {
     var sheet = sheetWithDocument.sheet;
     var document = sheetWithDocument.document;
@@ -98,15 +101,17 @@ function processSheets(sheetsWithDocuments, callback) {
     ], function (err, document, sheet, projectData) {
       if (err) {
         console.error("[ERROR] Could not generate CSV for sheet '"+ sheet.title +"' of document '"+ document.title +"'");
+        failed.push("<li>No se ha podido generar CSV para la hoja '"+ sheet.title +"' del documento '"+ document.title +"'</li>");
       } else {
         console.log("[SUCCESS] Generated CSV for sheet '"+ sheet.title +"' of document '"+ document.title +"'");
+        generated.push("<li>Generado CSV para la hoja '"+ sheet.title +"' del documento '"+ document.title +"'</li>");
       }
       step(); // Keep processing even when a file fails
     });
   };
   async.each(sheetsWithDocuments, processSheet, function (err) {
     if (err) { throw err; }
-    callback();
+    callback(generated, failed);
   });
 }
 
@@ -125,7 +130,16 @@ function generateBundle(callback) {
   });
 }
 
-function sendNotificationMail(report, callback) {
+function sendNotificationMail(bundlePath, generatedFiles, failedFiles, callback) {
+  report = "<h2>INFORME</h2>:";
+  report = "<p>La generación de ficheros ha finalizado. El agregado puede descargarse en: "+ bundlePath +"</p>";
+  if (failedFiles.length > 0) {
+    report += "<h3>Errores:</h3>";
+    report += "<ul>" + failedFiles.join("") + "</ul>";
+  }
+  report += "<h3>Correctos:</h3>";
+  report += "<ul>"+ generatedFiles.join("") + "</ul>";
+
   var params = {
     Destination: {
       BccAddresses: [],
@@ -135,7 +149,7 @@ function sendNotificationMail(report, callback) {
     Message: {
       Body: {
         Html: {
-          Data: report.replace("\n", "<br>"),
+          Data: report.replace("\n", " \n<br> "),
           Charset: 'UTF-8'
         },
         Text: {
@@ -152,6 +166,7 @@ function sendNotificationMail(report, callback) {
   };
   ses.sendEmail(params, function(err, data) {
     if (err) { throw err; }
+    console.log("[INFO] Sending notification mail.");
     callback();
   });
 }
