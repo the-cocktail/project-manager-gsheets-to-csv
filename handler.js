@@ -10,19 +10,12 @@ zipFolder = require('zip-folder');
 
 //////////// GLOBAL VARIABLES ////////////
 
-var globals = {
-  bucketName: "navision-to-csv",
-  generationFolder: "/tmp/csvs_"+ (new Date()).getTime(),
-  eventOrigin: "", // "http" or "cron",
-  erroredFiles: [], // Files with errors. All have a `sheet` and a `document`
-  generatedFiles: [], // Files with no errors. All have a `sheet` a `document` and a `file`
-  sheetsToProcess: [], // Contains the IDs of the sheets that must be processed.
-};
+var generationFolder = "/tmp/csvs_"+ (new Date()).getTime();
+var bucketName = "navision-to-csv";
 
 //////////// AWS LAMBDA ENTRY POINT ////////////
 
 module.exports.convert_http = function(event, context, callback) {
-  globals.eventOrigin = "http";
   if (!event.body.hasOwnProperty('documentIds')) {
     throw "The event must contain a list of 'documentIds'";
   }
@@ -61,6 +54,8 @@ module.exports.convert_http = function(event, context, callback) {
 //   //   }
 // };
 
+//////////// HIGH LEVEL FILE PROCESSING ////////////
+
 /**
  * Calls the given callback with a list of objects like {sheet: sheetObject, document: documentObject}
  * for the given document ID.
@@ -92,12 +87,12 @@ function processSheets(sheetsWithDocuments, callback) {
     var sheet = sheetWithDocument.sheet;
     var document = sheetWithDocument.document;
     async.waterfall([
-      async.apply(getProjectName, document, sheet),
-      getProjectId,
-      getResources,
-      getResourceDepartments,
-      getResourceDedications,
-      generateCSV
+      async.apply(_getProjectName, document, sheet),
+      _getProjectId,
+      _getResources,
+      _getResourceDepartments,
+      _getResourceDedications,
+      _generateCSV
     ], function (err, document, sheet, projectData) {
       if (err) {
         console.error("[ERROR] Could not generate CSV for sheet '"+ sheet.title +"' of document '"+ document.title +"'");
@@ -118,9 +113,9 @@ function processSheets(sheetsWithDocuments, callback) {
  */
 function generateBundle(callback) {
   var bundleName = _getBundleName();
-  zipFolder(globals.generationFolder, "/tmp/"+ bundleName, function(err) {
+  zipFolder(generationFolder, "/tmp/"+ bundleName, function(err) {
     var bundle = fs.readFileSync("/tmp/"+ bundleName);
-    s3.upload({Bucket: globals.bucketName, Key: bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
+    s3.upload({Bucket: bucketName, Key: bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
       if (err) { throw err; }
       console.log("[SUCCESS] Bundle "+ bundleName +" uploaded to S3.")
       callback(data.Location);
@@ -128,35 +123,9 @@ function generateBundle(callback) {
   });
 }
 
-//////////// DOCUMENT PROCESSING FUNCTIONS ////////////
+//////////// LOW LEVEL FILE PROCESSING ////////////
 
-function fetchSheetsFromDocument(documentId) {
-  var doc = new GoogleSpreadsheet(documentId);
-  var creds = require('./resources/credentials.json');
-  doc.useServiceAccountAuth(creds, function (err) {
-    doc.getInfo(function (err, info) {
-      info.worksheets.forEach(function (sheet) {
-        globals.sheetsToProcess.push({document: info, sheet: sheet});
-      });
-    });
-  });
-}
-
-function processSheet(responseCallback) {
-  if (globals.sheetsToProcess.length === 0) {
-    // TODO Generar fichero 
-    console.log("[INFO] All sheets processed.");
-    responseCallback();
-  } else {
-    var item = globals.sheetsToProcess.pop();
-    console.log("[INFO] Processing new sheet. Only "+ globals.sheetsToProcess.length +" to go.");
-    var document = item.document;
-    var sheet = item.sheet;
-    
-  }
-}
-
-function getProjectName(document, sheet, callback) {
+function _getProjectName(document, sheet, callback) {
   var projectNameCell = {'min-row': 2, 'max-row': 2, 'min-col': 3, 'max-col': 3};
   sheet.getCells(projectNameCell, function (err, cells) {
     try {
@@ -169,7 +138,7 @@ function getProjectName(document, sheet, callback) {
   });
 }
 
-function getProjectId(document, sheet, projectData, callback) {
+function _getProjectId(document, sheet, projectData, callback) {
   var projectIdCell = {'min-row': 1, 'max-row': 1, 'min-col': 4, 'max-col': 4};
   sheet.getCells(projectIdCell, function (err, cells) {
     try {
@@ -182,7 +151,7 @@ function getProjectId(document, sheet, projectData, callback) {
   });
 }
 
-function getResources(document, sheet, projectData, callback) {
+function _getResources(document, sheet, projectData, callback) {
   var resourceCells = {'min-row': 5, 'max-row': 5, 'return-empty': false};
   sheet.getCells(resourceCells, function (err, cells) {
     try {
@@ -196,7 +165,7 @@ function getResources(document, sheet, projectData, callback) {
   });
 }
 
-function getResourceDepartments(document, sheet, projectData, callback) {
+function _getResourceDepartments(document, sheet, projectData, callback) {
   var departmentCells = {'min-row': 3, 'max-row': 3, 'min-col': 3, 'max-col': 3 + projectData.resources.length - 1, 'return-empty': true};
   sheet.getCells(departmentCells, function (err, cells) {
     try {
@@ -211,7 +180,7 @@ function getResourceDepartments(document, sheet, projectData, callback) {
   });
 }
 
-function getResourceDedications(document, sheet, projectData, callback) {
+function _getResourceDedications(document, sheet, projectData, callback) {
   var weekCells = {'min-row': 15, 'min-col': 1, 'max-col': 1};
   sheet.getCells(weekCells, function (err, cells) {
     try {
@@ -242,7 +211,7 @@ function getResourceDedications(document, sheet, projectData, callback) {
   });
 }
 
-function generateCSV(document, sheet, projectData, callback) {
+function _generateCSV(document, sheet, projectData, callback) {
   var weeks = projectData.resources[0].dedications.map(function (dedication) {
     return dedication.week.getDate() + "/" + (dedication.week.getMonth() + 1) + "/" + dedication.week.getFullYear();
   });
@@ -256,15 +225,16 @@ function generateCSV(document, sheet, projectData, callback) {
   });
   // Output the CSV file
   csv.stringify(data, {header: true, delimiter: ';', quote: true}, function(err, data) {
-    if (!fs.existsSync(globals.generationFolder)) {
-      fs.mkdirSync(globals.generationFolder);
+    if (!fs.existsSync(generationFolder)) {
+      fs.mkdirSync(generationFolder);
     }
-    fs.writeFileSync(globals.generationFolder + "/" + sanitize(projectData.name) + ".csv", data);
+    fs.writeFileSync(generationFolder + "/" + sanitize(projectData.name) + ".csv", data);
     callback(null, document, sheet, projectData);
   });
 }
 
-//////////// HELPER FUNCTIONS ////////////
+//////////// HELPERS ////////////
+
 function _parseWeek(cell) {
   var components = cell.value.split("/").map(function (x) { return parseInt(x); });
   // Dates come in a format DD/MM/YYYY
@@ -283,16 +253,6 @@ function _getBundleName() {
   var ensurePrefix = function(x) { return x < 10 ? "0" + x : x; };
   var dateFormatted = date.getUTCFullYear() +"-"+ ensurePrefix(month) +"-"+ date.getUTCDate() +"-"+ ensurePrefix(date.getUTCHours()) +"-"+ ensurePrefix(date.getUTCMinutes());
   return "dedications_"+ dateFormatted +".zip";
-}
-
-function _generateReport(bundleUrl) {
-  var errors = globals.erroredFiles.map(function (err) {
-    return "[ERROR] Sheet '"+ err.sheet +"' of document '"+ err.document +"'";
-  });
-  var successes = globals.generatedFiles.map(function (suc) {
-    return "[SUCCESS] Sheet '"+ suc.sheet +"' of document '"+ suc.document +"'";
-  });
-  return "Process finished:\n"+ errors.join("\n") +"\n"+ successes.join("\n") + "\n Bundle available at: "+ bundleUrl;   
 }
 
 function _sendNotificationMail(report, callback) {
