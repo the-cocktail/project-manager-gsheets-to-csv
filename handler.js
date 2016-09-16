@@ -33,7 +33,7 @@ module.exports.convert_http = function(event, context, callback) {
   });
 };
 
-module.exports.convert_schedule = function(event, context, responseCallback) {
+module.exports.convert_schedule = function(event, context, callback) {
   entryPoint = "cron";  
   var eventData = require('./event.json');
   getSheets(eventData.documentIds, function (sheetsWithDocuments) {
