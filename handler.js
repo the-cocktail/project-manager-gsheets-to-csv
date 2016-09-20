@@ -97,7 +97,10 @@ function processSheets(sheetsWithDocuments, callback) {
         console.log("[SUCCESS] Generated CSV for sheet '"+ sheet.title +"' of document '"+ document.title +"'");
         generated.push("<li>Generado CSV para la hoja '"+ sheet.title +"' del documento '"+ document.title +"'</li>");
       }
-      step(); // Keep processing even when a file fails
+      // We set a time of 5 seconds between executions to sending too much requests to Google Drive
+      // API. When we make too much requests and too fast, Google Drive API blocks us for a few seconds
+      // making subsequent requests fail.
+      setTimeout(step, 5000); // Keep processing even when a file fails
     });
   };
   async.each(sheetsWithDocuments, processSheet, function (err) {
