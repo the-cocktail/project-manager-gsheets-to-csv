@@ -34,7 +34,7 @@ module.exports.convert_http = function(event, context, callback) {
 };
 
 module.exports.convert_schedule = function(event, context, callback) {
-  entryPoint = "cron";  
+  entryPoint = "cron";
   var eventData = require('./event.json');
   getSheets(eventData.documentIds, function (sheetsWithDocuments) {
     processSheets(sheetsWithDocuments, function (generated, failed) {
@@ -108,6 +108,26 @@ function processSheets(sheetsWithDocuments, callback) {
     callback(generated, failed);
   });
 }
+
+/**
+ * Genereates a single CSV file from the generated files.
+ */
+module.exports.aggregateCSVs = function() {
+  var dirname = "dedications_2016-09-16-06-16";
+  var parse = require("csv/node_modules/csv-parse/lib/sync");
+  return fs.readdirSync(dirname).map(function(fileName) {
+    var fileContents = fs.readFileSync(dirname +"/"+ fileName);
+    var fileParsed = parse(fileContents, {delimiter: ";"});
+    var header = fileParsed.shift();
+    console.log(header);
+    console.log(fileParsed);
+    // TODO comparar todas las cabeceras para ver que las semanas coinciden
+    // TODO error si falla algun fichero
+    // TODO hacer un flatten de todos los arrays (una vez eliminada la primera fila)
+    // TODO al array generado del flatten añadirle la primera fila (si todas son iguales da igual cual sea)
+    // TODO Guardar fichero
+  });
+};
 
 /**
  * Generates a ZIP and calls the given callback with its path.
@@ -232,7 +252,7 @@ function _getResourceDedications(document, sheet, projectData, callback) {
       var dedicationCells = {'min-row': 15, 'max-row': 15 + weeks.length - 1, 'min-col': 3, 'max-col': 3 + projectData.resources.length - 1, 'return-empty': true};
       // Once we have registered all weeks, we go for the dedications.
       sheet.getCells(dedicationCells, function (err, cells) {
-        if (err) { return callback(err, document, sheet, projectData); };
+        if (err) { return callback(err, document, sheet, projectData); }
         projectData.resources = projectData.resources.map(function (resource, index) {
           var resourceCol = 3 + index;
           var resourcehours = [];
