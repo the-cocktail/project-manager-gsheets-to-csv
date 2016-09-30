@@ -3,6 +3,7 @@ async = require('async');
 csv = require('csv');
 fs = require('fs');
 aws = require('aws-sdk');
+exec = require('child_process').exec;
 s3 = new aws.S3();
 ses = new aws.SES({region: "eu-west-1"});
 sanitize = require("sanitize-filename");
@@ -110,36 +111,23 @@ function processSheets(sheetsWithDocuments, callback) {
 }
 
 /**
- * Genereates a single CSV file from the generated files.
- */
-module.exports.aggregateCSVs = function() {
-  var dirname = "dedications_2016-09-16-06-16";
-  var parse = require("csv/node_modules/csv-parse/lib/sync");
-  return fs.readdirSync(dirname).map(function(fileName) {
-    var fileContents = fs.readFileSync(dirname +"/"+ fileName);
-    var fileParsed = parse(fileContents, {delimiter: ";"});
-    var header = fileParsed.shift();
-    console.log(header);
-    console.log(fileParsed);
-    // TODO comparar todas las cabeceras para ver que las semanas coinciden
-    // TODO error si falla algun fichero
-    // TODO hacer un flatten de todos los arrays (una vez eliminada la primera fila)
-    // TODO al array generado del flatten añadirle la primera fila (si todas son iguales da igual cual sea)
-    // TODO Guardar fichero
-  });
-};
-
-/**
  * Generates a ZIP and calls the given callback with its path.
  */
 function generateBundle(callback) {
   var bundleName = _getBundleName();
-  zipFolder(generationFolder, "/tmp/"+ bundleName, function(err) {
-    var bundle = fs.readFileSync("/tmp/"+ bundleName);
-    s3.upload({Bucket: bucketName, Key: bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
+  // Aggregates all files (without the first line) in the generation folder
+  exec("ls -Q | xargs -n 1 tail -n +2", {cwd: generationFolder}, function (err, aggregated, stderr) {
+    if (err) { throw err; }
+    // Gets the first line of the first file in the generation folder
+    // Since all files SHOULD have the same header, it does matter which file we get it from
+    exec('head -n1 "$(ls | head -n1)"', {cwd: generationFolder}, function (err, headline, stderr) {
       if (err) { throw err; }
-      console.log("[SUCCESS] Bundle "+ bundleName +" uploaded to S3. Can be downloaded at "+ data.Location);
-      callback(data.Location);
+      // Concatenate the header + the aggregated and upload it to s3
+      s3.upload({Bucket: bucketName, Key: "test/"+bundleName, Body: headline + aggregated, ACL: "public-read"}, function (err, data) {
+        if (err) { throw err; }
+        console.log("[SUCCESS] Bundle "+ bundleName +" uploaded to S3. Can be downloaded at "+ data.Location);
+        callback(data.Location);
+      });
     });
   });
 }
@@ -314,5 +302,5 @@ function _getBundleName() {
   // Sets the prefixes to print dates with two numbers. For example the mont 1 would be printed as "01".
   var ensurePrefix = function(x) { return x < 10 ? "0" + x : x; };
   var dateFormatted = date.getUTCFullYear() +"-"+ ensurePrefix(month) +"-"+ date.getUTCDate() +"-"+ ensurePrefix(date.getUTCHours()) +"-"+ ensurePrefix(date.getUTCMinutes());
-  return "dedications_"+ dateFormatted +".zip";
+  return "dedications_"+ dateFormatted +".csv";
 }
