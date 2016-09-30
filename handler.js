@@ -3,6 +3,7 @@ async = require('async');
 csv = require('csv');
 fs = require('fs');
 aws = require('aws-sdk');
+exec = require('child_process').exec;
 s3 = new aws.S3();
 ses = new aws.SES({region: "eu-west-1"});
 sanitize = require("sanitize-filename");
@@ -34,7 +35,7 @@ module.exports.convert_http = function(event, context, callback) {
 };
 
 module.exports.convert_schedule = function(event, context, callback) {
-  entryPoint = "cron";  
+  entryPoint = "cron";
   var eventData = require('./event.json');
   getSheets(eventData.documentIds, function (sheetsWithDocuments) {
     processSheets(sheetsWithDocuments, function (generated, failed) {
@@ -114,12 +115,19 @@ function processSheets(sheetsWithDocuments, callback) {
  */
 function generateBundle(callback) {
   var bundleName = _getBundleName();
-  zipFolder(generationFolder, "/tmp/"+ bundleName, function(err) {
-    var bundle = fs.readFileSync("/tmp/"+ bundleName);
-    s3.upload({Bucket: bucketName, Key: bundleName, Body: bundle, ACL: "public-read"}, function (err, data) {
+  // Aggregates all files (without the first line) in the generation folder
+  exec("ls -Q | xargs -n 1 tail -n +2", {cwd: generationFolder}, function (err, aggregated, stderr) {
+    if (err) { throw err; }
+    // Gets the first line of the first file in the generation folder
+    // Since all files SHOULD have the same header, it does matter which file we get it from
+    exec('head -n1 "$(ls | head -n1)"', {cwd: generationFolder}, function (err, headline, stderr) {
       if (err) { throw err; }
-      console.log("[SUCCESS] Bundle "+ bundleName +" uploaded to S3. Can be downloaded at "+ data.Location);
-      callback(data.Location);
+      // Concatenate the header + the aggregated and upload it to s3
+      s3.upload({Bucket: bucketName, Key: "test/"+bundleName, Body: headline + aggregated, ACL: "public-read"}, function (err, data) {
+        if (err) { throw err; }
+        console.log("[SUCCESS] Bundle "+ bundleName +" uploaded to S3. Can be downloaded at "+ data.Location);
+        callback(data.Location);
+      });
     });
   });
 }
@@ -232,7 +240,7 @@ function _getResourceDedications(document, sheet, projectData, callback) {
       var dedicationCells = {'min-row': 15, 'max-row': 15 + weeks.length - 1, 'min-col': 3, 'max-col': 3 + projectData.resources.length - 1, 'return-empty': true};
       // Once we have registered all weeks, we go for the dedications.
       sheet.getCells(dedicationCells, function (err, cells) {
-        if (err) { return callback(err, document, sheet, projectData); };
+        if (err) { return callback(err, document, sheet, projectData); }
         projectData.resources = projectData.resources.map(function (resource, index) {
           var resourceCol = 3 + index;
           var resourcehours = [];
@@ -294,5 +302,5 @@ function _getBundleName() {
   // Sets the prefixes to print dates with two numbers. For example the mont 1 would be printed as "01".
   var ensurePrefix = function(x) { return x < 10 ? "0" + x : x; };
   var dateFormatted = date.getUTCFullYear() +"-"+ ensurePrefix(month) +"-"+ date.getUTCDate() +"-"+ ensurePrefix(date.getUTCHours()) +"-"+ ensurePrefix(date.getUTCMinutes());
-  return "dedications_"+ dateFormatted +".zip";
+  return "dedications_"+ dateFormatted +".csv";
 }
