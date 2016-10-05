@@ -146,7 +146,7 @@ function sendNotificationMail(bundlePath, generatedFiles, failedFiles, callback)
     Destination: {
       BccAddresses: entryPoint === "cron" ? ["cristian.alvarez@the-cocktail.com"] : [],
       CcAddresses: [],
-      ToAddresses: entryPoint === "cron" ? ["finanzas.esp@the-cocktail.com"] : ["cristian.alvarez@the-cocktail.com"],
+      ToAddresses: entryPoint === "cron" ? ["finanzas.esp@the-cocktail.com", "daniel.delmoral@the-cocktail.com"] : ["cristian.alvarez@the-cocktail.com"],
     },
     Message: {
       Body: {
