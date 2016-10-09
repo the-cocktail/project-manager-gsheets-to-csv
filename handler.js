@@ -1,13 +1,13 @@
-GoogleSpreadsheet = require('google-spreadsheet');
-async = require('async');
-csv = require('csv');
-fs = require('fs');
-aws = require('aws-sdk');
-exec = require('child_process').exec;
-s3 = new aws.S3();
-ses = new aws.SES({region: "eu-west-1"});
-sanitize = require("sanitize-filename");
-zipFolder = require('zip-folder');
+var GoogleSpreadsheet = require('google-spreadsheet'),
+    async = require('async'),
+    csv = require('csv'),
+    fs = require('fs'),
+    aws = require('aws-sdk'),
+    exec = require('child_process').exec,
+    s3 = new aws.S3(),
+    ses = new aws.SES({region: "eu-west-1"}),
+    sanitize = require("sanitize-filename"),
+    zipFolder = require('zip-folder');
 
 //////////// GLOBAL VARIABLES ////////////
 
