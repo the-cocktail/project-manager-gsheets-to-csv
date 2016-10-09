@@ -110,10 +110,11 @@ function processSheets(sheetsWithDocuments, callback) {
       // API. When we make too much requests and too fast, Google Drive API blocks us for a few seconds
       // making subsequent requests fail.
       console.log("Sheet: '"+ sheet.title +"' processed.");
-      setTimeout(step, 5000); // Keep processing even when a file fails
+      step(); // Keep processing even when a file fails
     });
   };
-  async.each(sheetsWithDocuments, processSheet, function (err) {
+  // Process the sheets (maximum 3 concurrently)
+  async.eachLimit(sheetsWithDocuments, 3, processSheet, function (err) {
     if (err) { throw err; }
     callback(generated, failed);
   });
