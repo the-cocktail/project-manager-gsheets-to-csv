@@ -52,8 +52,13 @@ module.exports.convert_schedule = function(event, context, callback) {
 //////////// HIGH LEVEL FILE PROCESSING ////////////
 
 /**
- * Calls the given callback with a list of objects like {sheet: sheetObject, document: documentObject}
- * for the given document ID.
+ * Iterates over each document getting its worksheets. Each worksheet is
+ * represented as an object that contains the sheet and the parent document:
+ *
+ *    { sheet: sheetObject, document: documentObject }
+ *
+ * After all sheets have been retrieved. Calls the given `callback` passing the
+ * list of obtained sheets with their respective documents.
  */
 function getSheets(documentIds, callback) {
   var credentials = require('./resources/credentials.json');
