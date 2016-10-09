@@ -68,7 +68,7 @@ function getSheets(documentIds, callback) {
     doc.useServiceAccountAuth(credentials, function (err) {
       if (err) { throw err; }
       doc.getInfo(function (err, info) {
-        console.log("Getting sheets from document: '"+ info.title +"'.");
+        console.log("[INFO] Getting sheets from document: '"+ info.title +"'.");
         var sheetsWithDoc = info.worksheets.map(function (sheet) { return {document: info, sheet: sheet}; });
         step(null, sheetsWithDoc);
       });
@@ -90,7 +90,7 @@ function processSheets(sheetsWithDocuments, callback) {
   var processSheet = function (sheetWithDocument, step) {
     var sheet = sheetWithDocument.sheet;
     var document = sheetWithDocument.document;
-    console.log("Processing sheet: '"+ sheet.title +"'.");
+    console.log("[INFO] Processing sheet: '"+ sheet.title +"'.");
     async.waterfall([
       async.apply(_getProjectName, document, sheet),
       _getProjectId,
@@ -109,7 +109,7 @@ function processSheets(sheetsWithDocuments, callback) {
       // We set a time of 5 seconds between executions to sending too much requests to Google Drive
       // API. When we make too much requests and too fast, Google Drive API blocks us for a few seconds
       // making subsequent requests fail.
-      console.log("Sheet: '"+ sheet.title +"' processed.");
+      console.log("[INFO] Sheet: '"+ sheet.title +"' processed.");
       step(); // Keep processing even when a file fails
     });
   };
