@@ -13,6 +13,7 @@ var GoogleSpreadsheet = require('google-spreadsheet'),
 
 var generationFolder = "/tmp/csvs_"+ (new Date()).getTime();
 var bucketName = "navision-to-csv";
+var bucketDir = "dedications";
 var entryPoint = ""; // "http" or "cron"
 
 //////////// AWS LAMBDA ENTRY POINT ////////////
@@ -131,7 +132,7 @@ function generateBundle(callback) {
     exec('head -n1 "$(ls | head -n1)"', {cwd: generationFolder}, function (err, headline, stderr) {
       if (err) { throw err; }
       // Concatenate the header + the aggregated and upload it to s3
-      s3.upload({Bucket: bucketName, Key: "test/"+bundleName, Body: headline + aggregated, ACL: "public-read"}, function (err, data) {
+      s3.upload({Bucket: bucketName, Key: bucketDir +"/"+ bundleName, Body: headline + aggregated, ACL: "public-read"}, function (err, data) {
         if (err) { throw err; }
         console.log("[SUCCESS] Bundle "+ bundleName +" uploaded to S3. Can be downloaded at "+ data.Location);
         callback(data.Location);
