@@ -1,18 +1,19 @@
-GoogleSpreadsheet = require('google-spreadsheet');
-async = require('async');
-csv = require('csv');
-fs = require('fs');
-aws = require('aws-sdk');
-exec = require('child_process').exec;
-s3 = new aws.S3();
-ses = new aws.SES({region: "eu-west-1"});
-sanitize = require("sanitize-filename");
-zipFolder = require('zip-folder');
+var GoogleSpreadsheet = require('google-spreadsheet'),
+    async = require('async'),
+    csv = require('csv'),
+    fs = require('fs'),
+    aws = require('aws-sdk'),
+    exec = require('child_process').exec,
+    s3 = new aws.S3(),
+    ses = new aws.SES({region: "eu-west-1"}),
+    sanitize = require("sanitize-filename"),
+    zipFolder = require('zip-folder');
 
 //////////// GLOBAL VARIABLES ////////////
 
 var generationFolder = "/tmp/csvs_"+ (new Date()).getTime();
 var bucketName = "navision-to-csv";
+var bucketDir = "dedications";
 var entryPoint = ""; // "http" or "cron"
 
 //////////// AWS LAMBDA ENTRY POINT ////////////
@@ -52,8 +53,13 @@ module.exports.convert_schedule = function(event, context, callback) {
 //////////// HIGH LEVEL FILE PROCESSING ////////////
 
 /**
- * Calls the given callback with a list of objects like {sheet: sheetObject, document: documentObject}
- * for the given document ID.
+ * Iterates over each document getting its worksheets. Each worksheet is
+ * represented as an object that contains the sheet and the parent document:
+ *
+ *    { sheet: sheetObject, document: documentObject }
+ *
+ * After all sheets have been retrieved. Calls the given `callback` passing the
+ * list of obtained sheets with their respective documents.
  */
 function getSheets(documentIds, callback) {
   var credentials = require('./resources/credentials.json');
@@ -62,7 +68,8 @@ function getSheets(documentIds, callback) {
     doc.useServiceAccountAuth(credentials, function (err) {
       if (err) { throw err; }
       doc.getInfo(function (err, info) {
-        var sheetsWithDoc = info.worksheets.map(function (sheet) { return({document: info, sheet: sheet}); });
+        console.log("[INFO] Getting sheets from document: '"+ info.title +"'.");
+        var sheetsWithDoc = info.worksheets.map(function (sheet) { return {document: info, sheet: sheet}; });
         step(null, sheetsWithDoc);
       });
     });
@@ -83,6 +90,7 @@ function processSheets(sheetsWithDocuments, callback) {
   var processSheet = function (sheetWithDocument, step) {
     var sheet = sheetWithDocument.sheet;
     var document = sheetWithDocument.document;
+    console.log("[INFO] Processing sheet: '"+ sheet.title +"'.");
     async.waterfall([
       async.apply(_getProjectName, document, sheet),
       _getProjectId,
@@ -101,10 +109,12 @@ function processSheets(sheetsWithDocuments, callback) {
       // We set a time of 5 seconds between executions to sending too much requests to Google Drive
       // API. When we make too much requests and too fast, Google Drive API blocks us for a few seconds
       // making subsequent requests fail.
-      setTimeout(step, 5000); // Keep processing even when a file fails
+      console.log("[INFO] Sheet: '"+ sheet.title +"' processed.");
+      step(); // Keep processing even when a file fails
     });
   };
-  async.each(sheetsWithDocuments, processSheet, function (err) {
+  // Process the sheets (maximum 3 concurrently)
+  async.eachLimit(sheetsWithDocuments, 3, processSheet, function (err) {
     if (err) { throw err; }
     callback(generated, failed);
   });
@@ -123,7 +133,7 @@ function generateBundle(callback) {
     exec('head -n1 "$(ls | head -n1)"', {cwd: generationFolder}, function (err, headline, stderr) {
       if (err) { throw err; }
       // Concatenate the header + the aggregated and upload it to s3
-      s3.upload({Bucket: bucketName, Key: "test/"+bundleName, Body: headline + aggregated, ACL: "public-read"}, function (err, data) {
+      s3.upload({Bucket: bucketName, Key: bucketDir +"/"+ bundleName, Body: headline + aggregated, ACL: "public-read"}, function (err, data) {
         if (err) { throw err; }
         console.log("[SUCCESS] Bundle "+ bundleName +" uploaded to S3. Can be downloaded at "+ data.Location);
         callback(data.Location);
