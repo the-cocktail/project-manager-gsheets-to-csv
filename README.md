@@ -18,7 +18,8 @@ formato:
 Es necesario tener un fichero `credentials.json` en el directorio `resources` para
 que el script pueda autenticarse correctamente contra la API de Google Spreadsheets.
 
-Las credenciales pueden encontrarse en el fichero de passwords. Dentro del grupo "Navision".
+Las credenciales pueden encontrarse en el fichero de passwords.
+Dentro del grupo "*Modelo Imputación Horas*".
 
 ## Obteniendo los IDs de los documentos
 
@@ -33,7 +34,8 @@ script procese un fichero ese necesario seguir estos pasos:
 
 ## Ejecución en local
 
-*Importante* este proyecto utiliza la versión **4.3.2** de nodejs.
+*Importante* este proyecto utiliza la versión **4.3.2** de nodejs. Para instalar
+las dependencias usamos **[yarn](https://yarnpkg.com/)**.
 
 Para simular en local la ejecución de AWS Lambda hay que usar el paquete `serverless-offline`.
 Sólo es necesario ejecutar el comando `serverless offline start` en la raíz de nuestro proyecto.
