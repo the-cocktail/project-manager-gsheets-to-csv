@@ -13,31 +13,52 @@ var GoogleSpreadsheet = require('google-spreadsheet'),
 
 var generationFolder = "/tmp/csvs_"+ (new Date()).getTime();
 var bucketName = "navision-to-csv";
-var bucketDir = "dedications";
+var bucketDir = null; // Must be configured in event.json
+var notificationEmails = null; // Must be configured in event.json
+var emailSubject = null; // Must be configured in event.json
 var entryPoint = ""; // "http" or "cron"
 
 //////////// AWS LAMBDA ENTRY POINT ////////////
 
 module.exports.convert_http = function(event, context, callback) {
-  entryPoint = "http";
-  if (!event.body.hasOwnProperty('documentIds')) {
-    throw "The event must contain a list of 'documentIds'";
-  }
-  getSheets(event.body.documentIds, function (sheetsWithDocuments) {
-    processSheets(sheetsWithDocuments, function (generated, failed) {
-      generateBundle(function (bundlePath) {
-        sendNotificationMail(bundlePath, generated, failed, function() {
-          console.log("[INFO] Processing finished.");
-          callback(null, bundlePath);
-        });
-      });
-    });
-  });
+  performConversion(JSON.parse(event.body), 'http');
 };
 
+/**
+ * Triggers the periodic generation of TCK dedications file.
+ */
 module.exports.convert_schedule = function(event, context, callback) {
-  entryPoint = "cron";
-  var eventData = require('./event.json');
+  console.log("[INFO] Starting generation of TCK dedications.");
+  performConversion(require('./event-tck.json'), 'cron');
+};
+
+/**
+ * Triggers the periodic generation of TCA dedications file.
+ */
+module.exports.convert_schedule_tca = function(event, context, callback) {
+  console.log("[INFO] Starting generation of TCA dedications.");
+  performConversion(require('./event-tca.json'), 'cron');
+};
+
+function performConversion(eventData, conversionTriggeredBy) {
+  if (!eventData.hasOwnProperty('documentIds')) {
+    throw "The event must contain a list of 'documentIds'";
+  }
+  if (!eventData.hasOwnProperty('bucketDir')) {
+    throw "The event must contain a 'bucketDir' that specifies the generation directory in bucket";
+  }
+  if (!eventData.hasOwnProperty('emails')) {
+    throw "The event must contain a list of 'emails' that will be notified";
+  }
+  if (!eventData.hasOwnProperty('emailSubject')) {
+    throw "The event must contain an 'emailSubject' for the notification";
+  }
+  // Set up gloal variables
+  entryPoint = conversionTriggeredBy;
+  bucketDir = eventData.bucketDir;
+  emails = eventData.emails;
+  emailSubject = eventData.emailSubject;
+  // Start conversion
   getSheets(eventData.documentIds, function (sheetsWithDocuments) {
     processSheets(sheetsWithDocuments, function (generated, failed) {
       generateBundle(function (bundlePath) {
@@ -48,7 +69,7 @@ module.exports.convert_schedule = function(event, context, callback) {
       });
     });
   });
-};
+}
 
 //////////// HIGH LEVEL FILE PROCESSING ////////////
 
@@ -154,9 +175,9 @@ function sendNotificationMail(bundlePath, generatedFiles, failedFiles, callback)
 
   var params = {
     Destination: {
-      BccAddresses: entryPoint === "cron" ? ["cristian.alvarez@the-cocktail.com"] : [],
+      BccAddresses: [],
       CcAddresses: [],
-      ToAddresses: entryPoint === "cron" ? ["finanzas.esp@the-cocktail.com", "daniel.delmoral@the-cocktail.com"] : ["cristian.alvarez@the-cocktail.com"],
+      ToAddresses: notificationEmails,
     },
     Message: {
       Body: {
@@ -170,7 +191,7 @@ function sendNotificationMail(bundlePath, generatedFiles, failedFiles, callback)
         }
       },
       Subject: {
-        Data: 'Dedicaciones para Navision. Generado: '+  (new Date()).toGMTString(),
+        Data: emailSubject +' - Generado: '+  (new Date()).toGMTString(),
         Charset: 'UTF-8'
       }
     },

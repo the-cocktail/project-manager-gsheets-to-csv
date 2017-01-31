@@ -62,6 +62,11 @@ functions:
     timeout: 300
     events:
       - schedule: cron(0 4 * * ? *) # Everyday at 4.00 AM
+  generateCsvTcaSchedule:
+    handler: handler.convert_schedule_tca
+    timeout: 300
+    events:
+      - schedule: cron(30 4 0 * ? *) # Everyday at 4.30 AM
 
 #    you can add any of the following events
 #    events:

@@ -19,5 +19,8 @@
     "1gdr79K4m-tgxDiVw8EGhKMIJM5ViSdfTewObRdn6i7I",
     "1vWBrf6Zzx-tqXtjKdwERTbJHvlQ_y8_PVEZcQbIC5CY",
     "1mUIq7LdEDPTxWnQWM87Iqjic4zkhzBPzNy7DDnD_cJo"
-  ]
+  ],
+  "bucketDir": "dedications",
+  "notificationEmails": ["finanzas.esp@the-cocktail.com", "daniel.delmoral@the-cocktail.com"],
+  "emailSubject": "Dedicaciones TCK"
 }
