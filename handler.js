@@ -21,7 +21,7 @@ var entryPoint = ""; // "http" or "cron"
 //////////// AWS LAMBDA ENTRY POINT ////////////
 
 module.exports.convert_http = function(event, context, callback) {
-  performConversion(JSON.parse(event.body), 'http');
+  performConversion(JSON.parse(event.body), 'http', callback);
 };
 
 /**
@@ -29,7 +29,7 @@ module.exports.convert_http = function(event, context, callback) {
  */
 module.exports.convert_schedule = function(event, context, callback) {
   console.log("[INFO] Starting generation of TCK dedications.");
-  performConversion(require('./event-tck.json'), 'cron');
+  performConversion(require('./event-tck.json'), 'cron', callback);
 };
 
 /**
@@ -37,18 +37,18 @@ module.exports.convert_schedule = function(event, context, callback) {
  */
 module.exports.convert_schedule_tca = function(event, context, callback) {
   console.log("[INFO] Starting generation of TCA dedications.");
-  performConversion(require('./event-tca.json'), 'cron');
+  performConversion(require('./event-tca.json'), 'cron', callback);
 };
 
-function performConversion(eventData, conversionTriggeredBy) {
+function performConversion(eventData, conversionTriggeredBy, callback) {
   if (!eventData.hasOwnProperty('documentIds')) {
     throw "The event must contain a list of 'documentIds'";
   }
   if (!eventData.hasOwnProperty('bucketDir')) {
     throw "The event must contain a 'bucketDir' that specifies the generation directory in bucket";
   }
-  if (!eventData.hasOwnProperty('emails')) {
-    throw "The event must contain a list of 'emails' that will be notified";
+  if (!eventData.hasOwnProperty('notificationEmails')) {
+    throw "The event must contain a list of 'notificationEmails' that will be notified";
   }
   if (!eventData.hasOwnProperty('emailSubject')) {
     throw "The event must contain an 'emailSubject' for the notification";
