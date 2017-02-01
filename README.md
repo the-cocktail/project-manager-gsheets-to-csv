@@ -34,14 +34,7 @@ script procese un fichero ese necesario seguir estos pasos:
 
 ## Ejecución en local
 
-*Importante* este proyecto utiliza la versión **4.3.2** de nodejs. Para instalar
-las dependencias usamos **[yarn](https://yarnpkg.com/)**.
-
-Para bajarnos las dependencias es necesario usar el comando
-
-```
-yarn --ignore-engines
-```
+*Importante* este proyecto utiliza la versión **4.3.2** de nodejs.
 
 Para simular en local la ejecución de AWS Lambda hay que usar el paquete `serverless-offline`.
 Sólo es necesario ejecutar el comando `serverless offline start` en la raíz de nuestro proyecto.
