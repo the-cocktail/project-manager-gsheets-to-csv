@@ -56,7 +56,7 @@ function performConversion(eventData, conversionTriggeredBy, callback) {
   // Set up gloal variables
   entryPoint = conversionTriggeredBy;
   bucketDir = eventData.bucketDir;
-  emails = eventData.emails;
+  notificationEmails = eventData.notificationEmails;
   emailSubject = eventData.emailSubject;
   // Start conversion
   getSheets(eventData.documentIds, function (sheetsWithDocuments) {
