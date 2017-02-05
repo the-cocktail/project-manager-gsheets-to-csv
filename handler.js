@@ -175,7 +175,7 @@ function sendNotificationMail(bundlePath, generatedFiles, failedFiles, callback)
 
   var params = {
     Destination: {
-      BccAddresses: ["cristian.alvarez@the-cocktail.com"],
+      BccAddresses: [],
       CcAddresses: [],
       ToAddresses: notificationEmails,
     },
