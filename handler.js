@@ -146,12 +146,14 @@ function processSheets(sheetsWithDocuments, callback) {
  */
 function generateBundle(callback) {
   var bundleName = _getBundleName();
-  // Aggregates all files (without the first line) in the generation folder
-  exec("ls -Q | xargs -n 1 tail -n +2", {cwd: generationFolder}, function (err, aggregated, stderr) {
+  // Aggregates all files (without the first line) in the generation folder.
+  // Since we are managing potentially big files, we must increase the max buffer
+  // sice to fit the file contents. The max buffer size is now set to 1MB.
+  exec("ls -Q | xargs -n 1 tail -n +2", {cwd: generationFolder, maxBuffer: 1024 * 1024}, function (err, aggregated, stderr) {
     if (err) { throw err; }
     // Gets the first line of the first file in the generation folder
     // Since all files SHOULD have the same header, it does matter which file we get it from
-    exec('head -n1 "$(ls | head -n1)"', {cwd: generationFolder}, function (err, headline, stderr) {
+    exec('head -n1 "$(ls | head -n1)"', {cwd: generationFolder, maxBuffer: 1024 * 1024}, function (err, headline, stderr) {
       if (err) { throw err; }
       // Concatenate the header + the aggregated and upload it to s3
       s3.upload({Bucket: bucketName, Key: bucketDir +"/"+ bundleName, Body: headline + aggregated, ACL: "public-read"}, function (err, data) {
