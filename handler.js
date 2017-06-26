@@ -177,7 +177,7 @@ function sendNotificationMail(bundlePath, generatedFiles, failedFiles, callback)
 
   var params = {
     Destination: {
-      BccAddresses: ["cristian.alvarez@the-cocktail.com"],
+      BccAddresses: [],
       CcAddresses: [],
       ToAddresses: notificationEmails,
     },
@@ -197,7 +197,7 @@ function sendNotificationMail(bundlePath, generatedFiles, failedFiles, callback)
         Charset: 'UTF-8'
       }
     },
-    Source: 'cristian.alvarez@the-cocktail.com',
+    Source: 'ruby@the-cocktail.com',
   };
   ses.sendEmail(params, function(err, data) {
     if (err) { throw err; }
