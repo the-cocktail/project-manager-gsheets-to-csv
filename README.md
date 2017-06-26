@@ -12,11 +12,24 @@ respectivos ficheros de configuración, generan un CSV agregando los datos de
 todos ellos y lo suben a un bucket de Amazon S3.  Una vez subido al bucket se
 envía un email de notificación a las direcciones configuradas.
 
-## Versiones
+* [1. Instalación](#1-instalación)
+    * [1.1 Versiones](#11-versiones)
+    * [1.2 Obteniendo las credenciales](#12-obteniendo-las-credenciales)
+    * [1.3 Añadiendo un nuevo documento a la lista de procesamiento](#13-añadiendo-un-nuevo-documento-a-la-lista-de-procesamiento)
+* [2. Despliegue y ejecución](#2-despliegue-y-ejecución)
+    * [2.1 Ejecución en local](#21-ejecución-en-local)
+    * [2.2 Despliegue y ejecución en producción](#22-despliegue-y-ejecución-en-producción)
+* [3. Documentación](#3-documentación)
+    * [3.1 Puntos de entrada](#31-puntos-de-entrada)
+    * [3.2 Proceso de conversión](#32-proceso-de-conversión)
+
+## 1. Instalación
+
+### 1.1 Versiones
 
 Este proyecto funciona sobre NodeJS 4.3.2.
 
-## Obteniendo las credenciales
+### 1.2 Obteniendo las credenciales
 
 Es necesario tener un fichero `credentials.json` en el directorio `resources` para
 que el script pueda autenticarse correctamente contra la API de Google Spreadsheets.
@@ -24,7 +37,7 @@ que el script pueda autenticarse correctamente contra la API de Google Spreadshe
 Las credenciales pueden encontrarse en el fichero de passwords.
 Dentro del grupo "*Modelo Imputación Horas*".
 
-## Añadiendo un nuevo documento a la lista de procesamiento
+### 1.3 Añadiendo un nuevo documento a la lista de procesamiento
 
 En el fichero `credentials.json` verás un `client_email`. Para permitir que el
 script procese un fichero ese necesario seguir estos pasos:
@@ -36,13 +49,15 @@ script procese un fichero ese necesario seguir estos pasos:
   3. Añade el documentID del documento que quieres procesar al campo `documentIds`
   del fichero `event-tca.json` o `event-tck.json`.
 
-## Ejecución en local
+## 2. Despliegue y ejecución
+
+## 2.1 Ejecución en local
 
 Para simular en local la ejecución de AWS Lambda hay que usar el paquete
 `serverless-offline`.  Sólo es necesario ejecutar el comando
 `node_modules/.bin/serverless offline start` en la raíz de nuestro proyecto.
 
-## Despliegue y ejecución en producción
+## 2.2 Despliegue y ejecución en producción
 
 Para desplegar podemos usar el comando `node_modules/.bin/serverless deploy`, lo
 que nos generará un fichero `.zip` que desplegará en AWS Lambda.  El `.zip` que
@@ -54,9 +69,9 @@ y `generateCsvTcaSchedule`.
 Si queremos invocar manualmente alguna de estas funciones podemos usar el
 comando `node_modules/.bin/serverless invoke -f NOMBRE-DE-LA-FUNCION`.
 
-## Documentación
+## 3. Documentación
 
-### Puntos de entrada
+### 3.1 Puntos de entrada
 
 Nuestro fichero `handler.js` contiene todo el código del script de conversión.
 Este fichero exporta 3 funciones que conforman los puntos de entrada para las
@@ -66,7 +81,7 @@ Cada uno de estos puntos de entrada invoca a la función `performConversion` con
 la configuración adecuada.
 Esta función valida los datos de configuración y lanza el proceso de conversión.
 
-### Proceso de conversión
+### 3.2 Proceso de conversión
 
 El proceso de conversión está compuesto por un pipeline de 4 funciones.
 
@@ -88,4 +103,3 @@ El proceso de conversión está compuesto por un pipeline de 4 funciones.
   éste se sube a un bucket de Amazon S3.
   * Por último se invoca la función `sendNotificationMail` que envía el email
   de notificación con un enlace al fichero concatenado generado anteriormente.
-
