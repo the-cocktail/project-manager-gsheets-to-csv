@@ -34,8 +34,11 @@ Este proyecto funciona sobre NodeJS 4.3.2.
 Es necesario tener un fichero `credentials.json` en el directorio `resources` para
 que el script pueda autenticarse correctamente contra la API de Google Spreadsheets.
 
-Las credenciales pueden encontrarse en el fichero de passwords.
-Dentro del grupo "*Modelo Imputación Horas*".
+También necesitaremos configurar [Tacoma](https://github.com/pantulis/tacoma)
+para poder desplegar e invocar las funciones de AWS Lambda.
+
+Tanto el fichero `credentials.json` como las credenciales de Tacoma están
+disponibles en el Keepass de desarrollo, en la carpeta "Modelo Imputación Horas".
 
 ### 1.3 Añadiendo un nuevo documento a la lista de procesamiento
 
